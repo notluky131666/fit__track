@@ -46,13 +46,34 @@ export default function Statistics() {
 
   // Default progress data
   const defaultGoalProgress = {
-    weight: { current: 0, goal: 175, progress: 0 },
-    workouts: { current: 0, goal: 5, progress: 0 },
-    calories: { current: 0, goal: 2500, progress: 0 },
-    protein: { current: 0, goal: 150, progress: 0 },
+    weightProgress: 0,
+    weightGoal: 175,
+    workoutProgress: 0,
+    workoutGoal: 5,
+    calorieProgress: 0,
+    calorieGoal: 2500,
+    proteinProgress: 0,
+    proteinGoal: 150,
   };
 
-  const goals = goalProgress || defaultGoalProgress;
+  const goals = {
+    weight: {
+      progress: goalProgress?.weightProgress || 0,
+      goal: goalProgress?.weightGoal || defaultGoalProgress.weightGoal,
+    },
+    workouts: {
+      progress: goalProgress?.workoutProgress || 0,
+      goal: goalProgress?.workoutGoal || defaultGoalProgress.workoutGoal,
+    },
+    calories: {
+      progress: goalProgress?.calorieProgress || 0,
+      goal: goalProgress?.calorieGoal || defaultGoalProgress.calorieGoal,
+    },
+    protein: {
+      progress: goalProgress?.proteinProgress || 0,
+      goal: goalProgress?.proteinGoal || defaultGoalProgress.proteinGoal,
+    }
+  };
 
   return (
     <div className="p-6">
@@ -194,7 +215,7 @@ export default function Statistics() {
                 <span className="text-sm font-medium">Weight Goal ({goals.weight.goal} kg)</span>
                 <span className="text-sm font-medium">{goals.weight.progress}%</span>
               </div>
-              <Progress value={goals.weight.progress} className="h-2.5" />
+              <Progress value={goals.weight.progress} className="h-2.5" color="primary" />
             </div>
             
             <div>
@@ -202,7 +223,7 @@ export default function Statistics() {
                 <span className="text-sm font-medium">Weekly Workout Goal ({goals.workouts.goal} sessions)</span>
                 <span className="text-sm font-medium">{goals.workouts.progress}%</span>
               </div>
-              <Progress value={goals.workouts.progress} className="h-2.5" indicatorColor="bg-green-500" />
+              <Progress value={goals.workouts.progress} className="h-2.5" color="green" />
             </div>
             
             <div>
@@ -210,7 +231,7 @@ export default function Statistics() {
                 <span className="text-sm font-medium">Daily Calorie Goal ({goals.calories.goal} kcal)</span>
                 <span className="text-sm font-medium">{goals.calories.progress}%</span>
               </div>
-              <Progress value={goals.calories.progress} className="h-2.5" indicatorColor="bg-yellow-400" />
+              <Progress value={goals.calories.progress} className="h-2.5" color="yellow" />
             </div>
             
             <div>
@@ -218,7 +239,7 @@ export default function Statistics() {
                 <span className="text-sm font-medium">Daily Protein Goal ({goals.protein.goal}g)</span>
                 <span className="text-sm font-medium">{goals.protein.progress}%</span>
               </div>
-              <Progress value={goals.protein.progress} className="h-2.5" indicatorColor="bg-purple-500" />
+              <Progress value={goals.protein.progress} className="h-2.5" color="purple" />
             </div>
           </div>
         </CardContent>

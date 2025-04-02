@@ -444,12 +444,29 @@ export class SupabaseStorage implements IStorage {
   
   // Dashboard methods
   async getDashboardMetrics(userId: number): Promise<any> {
-    // Return minimal data to get the app running
+    // Get summaries
+    const weightSummary = await this.getWeightSummary(userId);
+    const nutritionSummary = await this.getNutritionSummary(userId);
+    const workoutSummary = await this.getWorkoutSummary(userId);
+    
+    // Get user goals
+    const userGoal = await this.getUserActiveGoal(userId);
+    
+    // Format metrics to match expected structure in app
     return {
-      weight: await this.getWeightSummary(userId),
-      nutrition: await this.getNutritionSummary(userId),
-      workout: await this.getWorkoutSummary(userId),
-      recentActivities: []
+      metrics: {
+        calories: nutritionSummary.calories,
+        weight: weightSummary.current,
+        workouts: workoutSummary.weekly
+      },
+      goals: {
+        calories: nutritionSummary.calorieGoal,
+        weight: weightSummary.goal,
+        workouts: workoutSummary.goal
+      },
+      progress: {
+        weight: weightSummary.progress
+      }
     };
   }
   
@@ -529,11 +546,35 @@ export class SupabaseStorage implements IStorage {
   }
   
   async getGoalProgress(userId: number): Promise<any> {
+    // Get weight summary which includes weight progress
+    const weightSummary = await this.getWeightSummary(userId);
+    
+    // Get nutrition summary
+    const nutritionSummary = await this.getNutritionSummary(userId);
+    
+    // Get workout summary
+    const workoutSummary = await this.getWorkoutSummary(userId);
+    
+    // Calculate nutrition progress
+    const calorieProgress = nutritionSummary.calorieGoal > 0 ? 
+      Math.min(Math.round((nutritionSummary.calories / nutritionSummary.calorieGoal) * 100), 100) : 0;
+    
+    const proteinProgress = nutritionSummary.proteinGoal > 0 ?
+      Math.min(Math.round((nutritionSummary.protein / nutritionSummary.proteinGoal) * 100), 100) : 0;
+    
+    // Calculate workout progress
+    const workoutProgress = workoutSummary.goal > 0 ?
+      Math.min(Math.round((workoutSummary.weekly / workoutSummary.goal) * 100), 100) : 0;
+    
     return {
-      weightProgress: 0,
-      calorieProgress: 0,
-      proteinProgress: 0,
-      workoutProgress: 0
+      weightProgress: weightSummary.progress,
+      weightGoal: weightSummary.goal,
+      calorieProgress: calorieProgress,
+      calorieGoal: nutritionSummary.calorieGoal,
+      proteinProgress: proteinProgress,
+      proteinGoal: nutritionSummary.proteinGoal,
+      workoutProgress: workoutProgress,
+      workoutGoal: workoutSummary.goal
     };
   }
 }
