@@ -18,7 +18,7 @@ import {
 import { format, subDays, startOfWeek, startOfMonth, parseISO } from "date-fns";
 import { IStorage } from "./storage";
 import { supabase } from "./supabase";
-import { initializeDatabase } from "./db-init";
+import { checkTablesExist, setupDatabase } from "./database-setup";
 
 export class SupabaseStorage implements IStorage {
   constructor() {
@@ -28,7 +28,15 @@ export class SupabaseStorage implements IStorage {
   
   async initialize() {
     try {
-      await initializeDatabase();
+      console.log('Checking Supabase database tables...');
+      const tablesExist = await checkTablesExist();
+      
+      if (!tablesExist) {
+        console.log('Tables not found. Creating tables in Supabase...');
+        await setupDatabase();
+      } else {
+        console.log('Supabase tables already exist.');
+      }
     } catch(error) {
       console.error("Error initializing database:", error);
     }

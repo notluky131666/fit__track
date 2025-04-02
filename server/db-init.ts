@@ -1,73 +1,52 @@
-import { supabase } from './supabase';
+// Database initialization function for PostgreSQL
+import * as fs from 'fs';
+import * as path from 'path';
+import pool from './pg-connection';
 
-// Create tables in Supabase database
-export async function initializeDatabase() {
-  console.log('Initializing database...');
-  
+// Initialize database tables and setup
+export async function initializeDatabase(): Promise<boolean> {
   try {
-    // The tables should already exist in Supabase, so we'll just create a default user if needed
+    console.log('Database initialization starting...');
     
-    // Check if users table exists by querying it
-    const { data: users, error: userQueryError } = await supabase.from('users').select('*').limit(1);
+    // Check if tables exist first
+    const tablesExist = await checkTablesExist();
     
-    if (userQueryError) {
-      // If we get an error, the table might not exist yet
-      if (userQueryError.message.includes('does not exist')) {
-        console.log('Creating tables in Supabase...');
-        
-        // Create tables using DDL in the Supabase SQL Editor
-        console.log('Tables need to be created manually in the Supabase dashboard.');
-        console.log('Please visit the Supabase dashboard for this project and run the SQL setup scripts.');
-        
-        return;
-      }
+    if (tablesExist) {
+      console.log('Database tables already exist, skipping initialization.');
+      return true;
     }
     
-    // Create default user if none exists
-    if (!users || users.length === 0) {
-      const { error } = await supabase.from('users').insert({
-        username: "luke",
-        password: "password123" // In a real app, this would be hashed
-      });
-      
-      if (error) {
-        console.error('Error creating default user:', error);
-        return;
-      }
-      
-      console.log('Created default user: luke');
-      
-      // Get the new user's ID
-      const { data: newUser } = await supabase
-        .from('users')
-        .select('*')
-        .eq('username', 'luke')
-        .single();
-      
-      if (!newUser) {
-        console.error('Failed to get default user after creation');
-        return;
-      }
-      
-      // Create default goals for the user
-      const { error: goalError } = await supabase.from('user_goals').insert({
-        user_id: newUser.id,
-        weight_goal: 175, // in kg
-        calorie_goal: 2500,
-        protein_goal: 150, // in grams
-        workout_goal: 5, // 5 sessions per week
-        is_active: true
-      });
-      
-      if (goalError) {
-        console.error('Error creating default goals:', goalError);
-      } else {
-        console.log('Created default goals for user');
-      }
-    }
+    console.log('Creating database tables...');
     
-    console.log('Database initialization completed');
+    // Read the SQL setup file
+    const sqlSetupPath = path.join(process.cwd(), 'supabase-setup.sql');
+    let sqlSetup = fs.readFileSync(sqlSetupPath, 'utf8');
+    
+    // Execute the SQL setup script
+    await pool.query(sqlSetup);
+    
+    console.log('Database tables created successfully.');
+    
+    return true;
   } catch (error) {
-    console.error('Error during database initialization:', error);
+    console.error('Failed to initialize database:', error);
+    return false;
+  }
+}
+
+// Check if tables already exist
+async function checkTablesExist(): Promise<boolean> {
+  try {
+    const result = await pool.query(`
+      SELECT EXISTS (
+        SELECT FROM information_schema.tables 
+        WHERE table_name = 'users'
+      );
+    `);
+    
+    return result.rows[0].exists;
+  } catch (error) {
+    console.error('Error checking if tables exist:', error);
+    return false;
   }
 }

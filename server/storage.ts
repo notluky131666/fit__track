@@ -1146,4 +1146,9 @@ import { SupabaseStorage } from "./supabase-storage-simplified";
 // For memory storage (no persistence):
 // export const storage = new MemStorage();
 // For Supabase storage (with persistence):
-export const storage = new SupabaseStorage();
+import { PostgresStorage } from './pg-storage';
+
+// Use PostgreSQL storage with the local database
+// Choose either MemStorage (for in-memory, non-persistent storage)
+// or PostgresStorage (for persistent database storage)
+export const storage = new PostgresStorage();
