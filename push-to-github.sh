@@ -1,18 +1,8 @@
 #!/bin/bash
 
-# This script helps push your code to GitHub
-# You'll need to enter your GitHub username and repo name
-
-# Ask for GitHub username
-read -p "Enter your GitHub username: " GITHUB_USERNAME
-
-# Ask for repository name (default: lukes-fit-track)
-read -p "Enter your repository name [lukes-fit-track]: " REPO_NAME
-REPO_NAME=${REPO_NAME:-lukes-fit-track}
-
+# Set up Git remote for the specified repository
 echo "Setting up remote repository..."
-# Add the GitHub repository as a remote
-git remote add origin https://github.com/$GITHUB_USERNAME/$REPO_NAME.git
+git remote add origin https://github.com/notluky131666/fit__track.git
 
 # Set the main branch
 git branch -M main
@@ -26,7 +16,7 @@ git push -u origin main
 
 if [ $? -eq 0 ]; then
   echo "✅ Successfully pushed to GitHub!"
-  echo "Your repository is now available at: https://github.com/$GITHUB_USERNAME/$REPO_NAME"
+  echo "Your repository is now available at: https://github.com/notluky131666/fit__track"
 else
   echo "❌ Push failed. Please check your credentials and try again."
 fi
