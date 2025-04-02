@@ -10,6 +10,7 @@ import Calories from "./pages/Calories";
 import Workouts from "./pages/Workouts";
 import Statistics from "./pages/Statistics";
 import History from "./pages/History";
+import { ThemeProvider } from "./hooks/use-theme";
 
 function Router() {
   return (
@@ -30,8 +31,10 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Router />
-      <Toaster />
+      <ThemeProvider>
+        <Router />
+        <Toaster />
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }
