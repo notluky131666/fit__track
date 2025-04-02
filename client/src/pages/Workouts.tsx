@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import LogWorkoutDialog from "@/components/dialogs/LogWorkoutDialog";
+import VoiceLogWorkoutDialog from "@/components/dialogs/VoiceLogWorkoutDialog";
 import ActivityTable, { Activity } from "@/components/ActivityTable";
 import { 
   AlertDialog,
@@ -180,7 +181,10 @@ export default function Workouts() {
     <section className="mb-10">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Workout Tracking</h2>
-        {user && <LogWorkoutDialog userId={user.id} existingWorkout={editingWorkout || undefined} />}
+        <div className="flex gap-2">
+          {user && <LogWorkoutDialog userId={user.id} existingWorkout={editingWorkout || undefined} />}
+          {user && <VoiceLogWorkoutDialog userId={user.id} />}
+        </div>
       </div>
       
       {/* Workout Overview */}
