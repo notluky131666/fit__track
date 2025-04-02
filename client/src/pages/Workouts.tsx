@@ -25,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import LogWorkoutDialog from "@/components/dialogs/LogWorkoutDialog";
-import ActivityTable from "@/components/ActivityTable";
+import ActivityTable, { Activity } from "@/components/ActivityTable";
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -67,8 +67,8 @@ export default function Workouts() {
     queryKey: ['/api/activities/recent'],
   });
 
-  // Filter activities to only show workout logs
-  const filteredWorkoutActivities = workoutActivities
+  // Filter activities to only show workout logs and convert to Activity type
+  const filteredWorkoutActivities: Activity[] = workoutActivities
     .filter(activity => activity.activityType === ActivityType.Workout)
     .filter(activity => {
       if (workoutTypeFilter === "all") return true;
@@ -76,7 +76,15 @@ export default function Workouts() {
       // Find the corresponding workout log to check its type
       const workoutLog = workoutLogs.find(log => log.id === activity.id);
       return workoutLog && workoutLog.type.toLowerCase() === workoutTypeFilter.toLowerCase();
-    });
+    })
+    .map(activity => ({
+      id: activity.id,
+      date: activity.date,
+      activityType: activity.activityType,
+      description: activity.description,
+      values: activity.values,
+      userId: activity.userId
+    }));
 
   // Calculate weekly and monthly workouts
   const startOfWeek = new Date();
@@ -144,16 +152,20 @@ export default function Workouts() {
     }
   });
 
-  const handleEditWorkout = (activity: ActivityLog) => {
+  const handleEditWorkout = (activity: Activity) => {
     const workout = workoutLogs.find(w => w.id === activity.id);
     if (workout) {
       setEditingWorkout(workout);
     }
   };
 
-  const handleDeleteWorkout = (activity: ActivityLog) => {
-    setWorkoutToDelete(activity);
-    setDeleteDialogOpen(true);
+  const handleDeleteWorkout = (activity: Activity) => {
+    // Convert Activity to ActivityLog if needed
+    const activityLog = workoutActivities.find(a => a.id === activity.id);
+    if (activityLog) {
+      setWorkoutToDelete(activityLog);
+      setDeleteDialogOpen(true);
+    }
   };
 
   const confirmDelete = () => {
@@ -175,25 +187,23 @@ export default function Workouts() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {/* Weekly Sessions Card */}
         <MetricCard
-          icon={<Calendar className="h-5 w-5 text-primary" />}
+          icon={<Calendar className="h-5 w-5" />}
           title="Weekly Sessions"
           value={weeklyWorkouts}
-          goal={user?.goalWorkoutSessions || 5}
-          progress={calculatePercentage(weeklyWorkouts, user?.goalWorkoutSessions || 5)}
+          goal={5}
+          progress={calculatePercentage(weeklyWorkouts, 5)}
+          iconBgColor="bg-blue-100"
+          iconColor="text-blue-600"
         />
         
         {/* Monthly Workouts Card */}
         <MetricCard
-          icon={<Dumbbell className="h-5 w-5 text-primary" />}
+          icon={<Dumbbell className="h-5 w-5" />}
           title="Monthly Sessions"
           value={monthlyWorkouts}
           unit="workouts"
-          additionalInfo={
-            <div className="flex text-sm text-gray-500">
-              <span>Last month: {lastMonthWorkouts}</span>
-              <span className="ml-auto">Goal: 20</span>
-            </div>
-          }
+          iconBgColor="bg-green-100"
+          iconColor="text-green-600"
         />
         
         {/* Favorite Exercises Card */}
