@@ -14,6 +14,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Default user ID (Luke)
   const DEFAULT_USER_ID = 1;
 
+  // ===== User Routes =====
+  app.get("/api/user", async (req: Request, res: Response) => {
+    try {
+      const user = await storage.getUser(DEFAULT_USER_ID);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      res.json(user);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
   // ===== Dashboard Routes =====
   app.get("/api/dashboard/metrics", async (req: Request, res: Response) => {
     try {
