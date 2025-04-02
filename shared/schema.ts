@@ -61,16 +61,24 @@ export const nutritionEntries = pgTable("nutrition_entries", {
   fat: numeric("fat").notNull(), // in grams
 });
 
-export const insertNutritionEntrySchema = createInsertSchema(nutritionEntries).pick({
-  userId: true,
-  date: true,
-  name: true,
-  servingSize: true,
-  calories: true,
-  protein: true,
-  carbs: true,
-  fat: true,
-});
+export const insertNutritionEntrySchema = createInsertSchema(nutritionEntries)
+  .pick({
+    userId: true,
+    date: true,
+    name: true,
+    servingSize: true,
+    calories: true,
+    protein: true,
+    carbs: true,
+    fat: true,
+  })
+  .extend({
+    date: z.coerce.date().optional(),
+    calories: z.coerce.number(),
+    protein: z.coerce.number(),
+    carbs: z.coerce.number(),
+    fat: z.coerce.number()
+  });
 
 export type InsertNutritionEntry = z.infer<typeof insertNutritionEntrySchema>;
 export type NutritionEntry = typeof nutritionEntries.$inferSelect;
@@ -86,14 +94,19 @@ export const workoutEntries = pgTable("workout_entries", {
   notes: text("notes"),
 });
 
-export const insertWorkoutEntrySchema = createInsertSchema(workoutEntries).pick({
-  userId: true,
-  name: true,
-  type: true,
-  date: true,
-  duration: true,
-  notes: true,
-});
+export const insertWorkoutEntrySchema = createInsertSchema(workoutEntries)
+  .pick({
+    userId: true,
+    name: true,
+    type: true,
+    date: true,
+    duration: true,
+    notes: true,
+  })
+  .extend({
+    date: z.coerce.date().optional(),
+    duration: z.coerce.number(),
+  });
 
 export type InsertWorkoutEntry = z.infer<typeof insertWorkoutEntrySchema>;
 export type WorkoutEntry = typeof workoutEntries.$inferSelect;
@@ -108,13 +121,19 @@ export const exerciseEntries = pgTable("exercise_entries", {
   weight: numeric("weight"), // in kg, optional for exercises like cardio
 });
 
-export const insertExerciseEntrySchema = createInsertSchema(exerciseEntries).pick({
-  workoutId: true,
-  name: true,
-  sets: true,
-  reps: true,
-  weight: true,
-});
+export const insertExerciseEntrySchema = createInsertSchema(exerciseEntries)
+  .pick({
+    workoutId: true,
+    name: true,
+    sets: true,
+    reps: true,
+    weight: true,
+  })
+  .extend({
+    sets: z.coerce.number(),
+    reps: z.coerce.number(),
+    weight: z.coerce.number().optional(),
+  });
 
 export type InsertExerciseEntry = z.infer<typeof insertExerciseEntrySchema>;
 export type ExerciseEntry = typeof exerciseEntries.$inferSelect;
