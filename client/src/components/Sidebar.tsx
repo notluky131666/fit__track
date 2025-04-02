@@ -1,81 +1,64 @@
 import { Link, useLocation } from "wouter";
-import { cn } from "@/lib/utils";
 import { 
   LayoutDashboard, 
-  Utensils, 
+  LineChart, 
   Weight, 
   Dumbbell, 
   BarChart3, 
-  History, 
-  Settings, 
-  User as UserIcon
+  History
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { User } from "@shared/schema";
 
-interface SidebarProps {
-  isOpen: boolean;
-}
-
-export default function Sidebar({ isOpen }: SidebarProps) {
+export default function Sidebar() {
   const [location] = useLocation();
-  const { data: user } = useQuery<User>({
-    queryKey: ['/api/user'],
-  });
-
-  const routes = [
-    { path: "/", label: "Dashboard", icon: LayoutDashboard },
-    { path: "/calories", label: "Calories", icon: Utensils },
-    { path: "/weight", label: "Weight", icon: Weight },
-    { path: "/workouts", label: "Workouts", icon: Dumbbell },
-    { path: "/statistics", label: "Statistics", icon: BarChart3 },
-    { path: "/history", label: "History", icon: History },
+  
+  const navItems = [
+    { path: "/", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5 mr-3" /> },
+    { path: "/calories", label: "Calories", icon: <LineChart className="h-5 w-5 mr-3" /> },
+    { path: "/weight", label: "Weight", icon: <Weight className="h-5 w-5 mr-3" /> },
+    { path: "/workouts", label: "Workouts", icon: <Dumbbell className="h-5 w-5 mr-3" /> },
+    { path: "/statistics", label: "Statistics", icon: <BarChart3 className="h-5 w-5 mr-3" /> },
+    { path: "/history", label: "History", icon: <History className="h-5 w-5 mr-3" /> },
   ];
 
   return (
-    <aside 
-      className={cn(
-        "sidebar w-64 bg-white shadow-md h-screen fixed md:sticky top-0 z-10 transition-all",
-        isOpen ? "open" : ""
-      )}
-    >
-      <div className="p-4 border-b">
-        <h1 className="text-2xl font-bold text-primary">Luke's Fit Track</h1>
-      </div>
-      <nav className="p-2">
-        <ul>
-          {routes.map((route) => (
-            <li key={route.path}>
-              <Link href={route.path}>
-                <a 
-                  className={cn(
-                    "sidebar-link flex items-center p-3 rounded-lg mb-1 hover:bg-blue-50",
-                    location === route.path ? "active" : ""
-                  )}
-                >
-                  <route.icon className="w-6 h-6 text-primary" />
-                  <span className="ml-2">{route.label}</span>
-                </a>
-              </Link>
-            </li>
+    <div className="sidebar fixed bottom-0 md:top-0 md:bottom-auto w-full md:w-64 h-auto md:h-full bg-white shadow-md overflow-y-auto z-50 md:z-auto">
+      <div className="sidebar-content flex flex-row md:flex-col h-full">
+        {/* App Title - hidden on mobile */}
+        <div className="sidebar-header hidden md:block px-4 py-6 border-b">
+          <h1 className="text-2xl font-bold text-primary">Luke's Fit Track</h1>
+        </div>
+        
+        {/* Navigation Items */}
+        <nav className="flex-1 flex flex-row md:flex-col px-2 py-0 md:py-4 space-y-0 md:space-y-1">
+          {navItems.map((item) => (
+            <Link 
+              key={item.path} 
+              href={item.path}
+              className={`flex items-center px-4 py-3 text-sm font-medium rounded-md transition-colors ${
+                (location === item.path || (item.path !== "/" && location.startsWith(item.path))) ? 
+                "bg-blue-50 text-primary border-b-0 md:border-b-0 border-t-2 md:border-t-0 md:border-l-2 border-primary" : 
+                "hover:bg-blue-50 text-gray-500"
+              }`}
+            >
+              {item.icon}
+              <span className="hidden md:inline">{item.label}</span>
+            </Link>
           ))}
-        </ul>
-      </nav>
-      <div className="absolute bottom-0 w-full p-4 border-t">
-        <a href="#settings" className="flex items-center p-2 text-gray-700 hover:bg-blue-50 rounded">
-          <Settings className="w-6 h-6" />
-          <span className="ml-2">Settings</span>
-        </a>
-        <div className="flex items-center mt-4">
-          <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">
-            <span>{user?.username.charAt(0).toUpperCase()}</span>
-          </div>
-          <div className="ml-2">
-            <p className="text-sm font-medium">{user?.username || "User"}</p>
-            <p className="text-xs text-gray-500">{user?.email || "user@example.com"}</p>
+        </nav>
+        
+        {/* User Profile - hidden on mobile */}
+        <div className="hidden md:block p-4 border-t">
+          <div className="flex items-center">
+            <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center font-medium">
+              L
+            </div>
+            <div className="ml-3">
+              <p className="text-sm font-medium">Luke</p>
+              <p className="text-xs text-gray-500">Settings</p>
+            </div>
           </div>
         </div>
       </div>
-    </aside>
+    </div>
   );
 }

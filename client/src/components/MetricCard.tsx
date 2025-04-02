@@ -1,67 +1,51 @@
-import { ReactNode } from "react";
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-
-interface ProgressBarProps {
-  value: number;
-  colorClass?: string;
-}
-
-function ProgressBar({ value, colorClass = "bg-primary" }: ProgressBarProps) {
-  return (
-    <div className="w-full bg-neutral-200 rounded-full h-2">
-      <div 
-        className={cn("rounded-full h-2", colorClass)} 
-        style={{ width: `${value}%` }}
-      ></div>
-    </div>
-  );
-}
+import { ReactNode } from "react";
+import { Progress } from "@/components/ui/progress";
 
 interface MetricCardProps {
-  icon: ReactNode;
   title: string;
   value: string | number;
-  unit?: string;
   goal?: string | number;
+  unit?: string;
   progress?: number;
+  icon: ReactNode;
+  iconBgColor: string;
+  iconColor: string;
   progressColor?: string;
-  additionalInfo?: ReactNode;
 }
 
 export default function MetricCard({
-  icon,
   title,
   value,
-  unit,
   goal,
+  unit,
   progress = 0,
-  progressColor = "bg-primary",
-  additionalInfo
+  icon,
+  iconBgColor,
+  iconColor,
+  progressColor = "bg-primary"
 }: MetricCardProps) {
   return (
     <Card>
-      <CardContent className="p-5">
-        <div className="flex items-center mb-4">
-          <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
-            {icon}
+      <CardContent className="pt-6">
+        <div className="flex items-center mb-3">
+          <div className={`w-10 h-10 rounded-full ${iconBgColor} flex items-center justify-center mr-3`}>
+            <div className={iconColor}>{icon}</div>
           </div>
-          <h3 className="ml-3 text-lg font-medium">{title}</h3>
+          <h3 className="text-base font-medium">{title}</h3>
         </div>
-        <div className="flex items-baseline">
-          <span className="text-3xl font-bold">{value}</span>
-          {unit && <span className="ml-1 text-gray-500">{unit}</span>}
-        </div>
+        <p className="text-3xl font-semibold mb-2">
+          {value} {unit && <span className="text-lg font-medium">{unit}</span>}
+        </p>
         {goal && (
-          <div className="mt-3">
+          <>
             <div className="flex justify-between text-sm mb-1">
-              <span>Goal: {goal}</span>
+              <span>Goal: {goal} {unit}</span>
               <span className="text-gray-500">{progress}% achieved</span>
             </div>
-            <ProgressBar value={progress} colorClass={progressColor} />
-          </div>
+            <Progress value={progress} className="h-2" indicatorColor={progressColor} />
+          </>
         )}
-        {additionalInfo && <div className="mt-3">{additionalInfo}</div>}
       </CardContent>
     </Card>
   );

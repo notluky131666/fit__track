@@ -1,369 +1,292 @@
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { 
-  User, 
-  Activity, 
-  ActivityType
-} from "@shared/schema";
+import { useQuery } from "@tanstack/react-query";
 import { 
   Card, 
-  CardContent 
+  CardContent, 
+  CardHeader, 
+  CardTitle 
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { 
+  Table, 
+  TableBody, 
+  TableCell, 
+  TableHead, 
+  TableHeader, 
+  TableRow 
+} from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { formatDate, getCurrentDate } from "@/lib/utils";
-import ActivityTable from "@/components/ActivityTable";
-import { 
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { 
-  Download,
-  Filter,
-  XCircle
-} from "lucide-react";
+import { format } from "date-fns";
+import { Eye, Download } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+
+interface HistoryEntry {
+  id: number;
+  date: string;
+  time: string;
+  activityType: string;
+  description: string;
+  values: string;
+}
 
 export default function History() {
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [activityToDelete, setActivityToDelete] = useState<Activity | null>(null);
-  
-  // Filter states
-  const [activityType, setActivityType] = useState<string>("all");
-  const [dateRange, setDateRange] = useState<string>("all");
-  const [startDate, setStartDate] = useState<string>(
-    new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0]
-  );
-  const [endDate, setEndDate] = useState<string>(getCurrentDate());
-  const [isCustomDateRange, setIsCustomDateRange] = useState(false);
-
+  const [activityType, setActivityType] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [viewingEntry, setViewingEntry] = useState<HistoryEntry | null>(null);
   const { toast } = useToast();
-  const queryClient = useQueryClient();
 
-  // Fetch user data
-  const { data: user } = useQuery<User>({
-    queryKey: ['/api/user'],
+  // Fetch history entries
+  const { data, isLoading } = useQuery({
+    queryKey: ['/api/history', { activityType, dateFrom, dateTo, page: currentPage }],
   });
 
-  // Fetch all activities
-  const { data: allActivities = [], isLoading: isActivitiesLoading } = useQuery<Activity[]>({
-    queryKey: ['/api/activities/recent/user', user?.id, 1000],
-    enabled: !!user?.id,
-  });
+  const historyEntries = data?.entries || [];
+  const totalEntries = data?.total || 0;
+  const entriesPerPage = data?.perPage || 10;
+  const totalPages = Math.ceil(totalEntries / entriesPerPage);
 
-  // Apply filters to activities
-  const getFilteredActivities = () => {
-    let filtered = [...allActivities];
-
-    // Filter by activity type
-    if (activityType !== "all") {
-      filtered = filtered.filter(activity => activity.type === activityType);
-    }
-
-    // Filter by date range
-    if (dateRange !== "all" || isCustomDateRange) {
-      let rangeStartDate: Date;
-      let rangeEndDate = new Date();
+  const handleExport = async () => {
+    try {
+      const response = await apiRequest('GET', `/api/history/export?activityType=${activityType}&dateFrom=${dateFrom}&dateTo=${dateTo}`);
       
-      if (isCustomDateRange) {
-        rangeStartDate = new Date(startDate);
-        rangeEndDate = new Date(endDate);
-        rangeEndDate.setHours(23, 59, 59, 999); // End of the day
-      } else {
-        const now = new Date();
-        
-        switch (dateRange) {
-          case "7days":
-            rangeStartDate = new Date(now.setDate(now.getDate() - 7));
-            break;
-          case "30days":
-            rangeStartDate = new Date(now.setDate(now.getDate() - 30));
-            break;
-          case "90days":
-            rangeStartDate = new Date(now.setDate(now.getDate() - 90));
-            break;
-          default:
-            rangeStartDate = new Date(0); // Beginning of time
-        }
-      }
+      // Create and download CSV
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `lukes-fit-track-history-${format(new Date(), 'yyyy-MM-dd')}.csv`;
+      document.body.appendChild(a);
+      a.click();
       
-      filtered = filtered.filter(activity => {
-        const activityDate = new Date(activity.date);
-        return activityDate >= rangeStartDate && activityDate <= rangeEndDate;
-      });
-    }
-
-    return filtered;
-  };
-
-  const filteredActivities = getFilteredActivities();
-
-  // Handle date range change
-  const handleDateRangeChange = (value: string) => {
-    setDateRange(value);
-    setIsCustomDateRange(value === "custom");
-  };
-
-  // Reset filters
-  const resetFilters = () => {
-    setActivityType("all");
-    setDateRange("all");
-    setIsCustomDateRange(false);
-    setStartDate(new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0]);
-    setEndDate(getCurrentDate());
-  };
-
-  // Handle activity deletion based on type
-  const handleDeleteActivity = (activity: Activity) => {
-    setActivityToDelete(activity);
-    setDeleteDialogOpen(true);
-  };
-
-  const deleteMutation = useMutation({
-    mutationFn: async (activity: Activity) => {
-      let endpoint = '';
-      
-      switch (activity.type) {
-        case ActivityType.WEIGHT:
-          endpoint = `/api/weight-logs/${activity.id}`;
-          break;
-        case ActivityType.WORKOUT:
-          endpoint = `/api/workout-logs/${activity.id}`;
-          break;
-        case ActivityType.NUTRITION:
-          endpoint = `/api/nutrition-logs/${activity.id}`;
-          break;
-      }
-      
-      const response = await apiRequest("DELETE", endpoint, null);
-      return response.json();
-    },
-    onSuccess: () => {
-      // Invalidate all relevant queries
-      queryClient.invalidateQueries({ queryKey: ['/api/weight-logs/user', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['/api/workout-logs/user', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['/api/nutrition-logs/user', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['/api/activities/recent/user', user?.id] });
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
       
       toast({
-        title: "Activity deleted",
-        description: "The activity has been successfully deleted.",
+        title: "Export Successful",
+        description: "Your history data has been exported successfully.",
       });
-    },
-    onError: () => {
+    } catch (error) {
       toast({
-        title: "Failed to delete activity",
-        description: "Please try again.",
+        title: "Export Failed",
+        description: `Failed to export data: ${error instanceof Error ? error.message : "Unknown error"}`,
         variant: "destructive",
       });
     }
-  });
-
-  const confirmDelete = () => {
-    if (activityToDelete) {
-      deleteMutation.mutate(activityToDelete);
-      setDeleteDialogOpen(false);
-      setActivityToDelete(null);
-    }
-  };
-
-  // Helper function to format activity type labels
-  const formatActivityType = (type: string): string => {
-    switch (type) {
-      case ActivityType.WEIGHT:
-        return "Weight Logs";
-      case ActivityType.WORKOUT:
-        return "Workouts";
-      case ActivityType.NUTRITION:
-        return "Nutrition";
-      default:
-        return "All Activities";
-    }
-  };
-
-  // Download activities as CSV
-  const downloadActivitiesCSV = () => {
-    if (filteredActivities.length === 0) {
-      toast({
-        title: "No data to export",
-        description: "There are no activities matching your filters to export.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    // Create CSV content
-    const headers = ["Date", "Type", "Activity", "Metric", "Value", "Notes"];
-    const rows = filteredActivities.map(activity => [
-      formatDate(activity.date),
-      activity.type,
-      activity.title,
-      activity.metric,
-      activity.value,
-      activity.notes || ""
-    ]);
-    
-    const csvContent = [
-      headers.join(","),
-      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
-    ].join("\n");
-    
-    // Create download link
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `luke-fit-track-history-${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   return (
-    <section className="mb-10">
+    <div className="p-6">
       <h2 className="text-2xl font-bold mb-6">Activity History</h2>
       
       {/* Filters */}
-      <Card className="mb-8">
-        <CardContent className="p-5">
-          <h3 className="text-lg font-medium mb-4">Filters</h3>
+      <Card className="mb-6">
+        <CardContent className="pt-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Activity Type</label>
+              <label className="block text-sm font-medium mb-2" htmlFor="activity-type">
+                Activity Type
+              </label>
               <Select value={activityType} onValueChange={setActivityType}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select activity type" />
+                <SelectTrigger id="activity-type">
+                  <SelectValue placeholder="All Activities" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Activities</SelectItem>
-                  <SelectItem value={ActivityType.WEIGHT}>Weight Logs</SelectItem>
-                  <SelectItem value={ActivityType.WORKOUT}>Workouts</SelectItem>
-                  <SelectItem value={ActivityType.NUTRITION}>Nutrition</SelectItem>
+                  <SelectItem value="weight">Weight Entries</SelectItem>
+                  <SelectItem value="nutrition">Nutrition Entries</SelectItem>
+                  <SelectItem value="workout">Workout Entries</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date Range</label>
-              <Select value={dateRange} onValueChange={handleDateRangeChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select date range" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Time</SelectItem>
-                  <SelectItem value="7days">Last 7 days</SelectItem>
-                  <SelectItem value="30days">Last 30 days</SelectItem>
-                  <SelectItem value="90days">Last 90 days</SelectItem>
-                  <SelectItem value="custom">Custom</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+              <label className="block text-sm font-medium mb-2" htmlFor="date-from">
+                From Date
+              </label>
               <Input
+                id="date-from"
                 type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                disabled={!isCustomDateRange}
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
               />
             </div>
+            
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
+              <label className="block text-sm font-medium mb-2" htmlFor="date-to">
+                To Date
+              </label>
               <Input
+                id="date-to"
                 type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                disabled={!isCustomDateRange}
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
               />
             </div>
-          </div>
-          <div className="mt-4 flex space-x-2">
-            <Button 
-              onClick={() => {}} 
-              className="bg-primary hover:bg-primary/90"
-            >
-              <Filter className="mr-2 h-4 w-4" />
-              Apply Filters
-            </Button>
-            <Button
-              variant="outline"
-              onClick={resetFilters}
-            >
-              <XCircle className="mr-2 h-4 w-4" />
-              Reset
-            </Button>
+            
+            <div className="flex items-end">
+              <Button 
+                className="w-full" 
+                variant="outline" 
+                onClick={() => {
+                  setDateFrom("");
+                  setDateTo("");
+                  setActivityType("all");
+                }}
+              >
+                Reset Filters
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
       
       {/* History Table */}
       <Card>
-        <div className="border-b px-5 py-4 flex justify-between items-center">
-          <h3 className="text-lg font-medium">Activity Logs</h3>
-          <div className="flex items-center">
-            <span className="text-sm text-gray-500 mr-3">
-              {filteredActivities.length} records found
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={downloadActivitiesCSV}
-              disabled={filteredActivities.length === 0}
-            >
-              <Download className="h-4 w-4" />
-            </Button>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle>Activity Log</CardTitle>
+          <Button onClick={handleExport} className="flex items-center gap-1">
+            <Download className="h-4 w-4" />
+            Export Data
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Time</TableHead>
+                  <TableHead>Activity Type</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Values</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center">Loading...</TableCell>
+                  </TableRow>
+                ) : historyEntries.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center">
+                      No history entries found. Start tracking your activities to build your history!
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  historyEntries.map((entry: HistoryEntry) => (
+                    <TableRow key={entry.id}>
+                      <TableCell>{entry.date}</TableCell>
+                      <TableCell>{entry.time}</TableCell>
+                      <TableCell>
+                        <span className={
+                          entry.activityType === 'weight' ? 'text-yellow-600' :
+                          entry.activityType === 'nutrition' ? 'text-primary' :
+                          entry.activityType === 'workout' ? 'text-green-600' : ''
+                        }>
+                          {entry.activityType.charAt(0).toUpperCase() + entry.activityType.slice(1)}
+                        </span>
+                      </TableCell>
+                      <TableCell>{entry.description}</TableCell>
+                      <TableCell>{entry.values}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setViewingEntry(entry)}
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           </div>
-        </div>
-        <div>
-          <ActivityTable
-            title="Activity Logs"
-            activities={filteredActivities}
-            loading={isActivitiesLoading}
-            onDelete={handleDeleteActivity}
-            emptyMessage="No activity records found. Start tracking to see your history."
-          />
-        </div>
-        <div className="px-5 py-4 border-t">
-          <div className="flex justify-between items-center">
-            <div className="text-sm text-gray-500">
-              Showing {filteredActivities.length > 0 ? `1-${filteredActivities.length}` : '0-0'} of {filteredActivities.length} records
+          
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-700">
+                  Showing <span className="font-medium">{(currentPage - 1) * entriesPerPage + 1}</span> to{" "}
+                  <span className="font-medium">
+                    {Math.min(currentPage * entriesPerPage, totalEntries)}
+                  </span>{" "}
+                  of <span className="font-medium">{totalEntries}</span> results
+                </p>
+              </div>
+              <div className="flex space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </Button>
+              </div>
             </div>
-            {/* Pagination could be added here if needed */}
+          )}
+        </CardContent>
+      </Card>
+      
+      {/* Detail Modal */}
+      {viewingEntry && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-lg">
+            <div className="px-6 py-4 border-b flex justify-between items-center">
+              <h3 className="text-xl font-semibold">Activity Details</h3>
+              <Button variant="ghost" size="icon" onClick={() => setViewingEntry(null)}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </Button>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Date</p>
+                  <p className="text-base">{viewingEntry.date}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Time</p>
+                  <p className="text-base">{viewingEntry.time}</p>
+                </div>
+              </div>
+              
+              <div className="mb-4">
+                <p className="text-sm font-medium text-gray-500">Activity Type</p>
+                <p className="text-base capitalize">{viewingEntry.activityType}</p>
+              </div>
+              
+              <div className="mb-4">
+                <p className="text-sm font-medium text-gray-500">Description</p>
+                <p className="text-base">{viewingEntry.description}</p>
+              </div>
+              
+              <div>
+                <p className="text-sm font-medium text-gray-500">Values</p>
+                <p className="text-base">{viewingEntry.values}</p>
+              </div>
+            </div>
           </div>
         </div>
-      </Card>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will permanently delete the {activityToDelete?.type} record from {activityToDelete ? formatDate(activityToDelete.date) : ""}.
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-red-500 hover:bg-red-600">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </section>
+      )}
+    </div>
   );
 }

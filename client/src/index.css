@@ -10,29 +10,4 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
   }
-
-  /* Custom sidebar active styles */
-  .sidebar-link.active {
-    @apply bg-blue-50 border-l-2 border-primary font-medium;
-  }
-}
-
-@layer components {
-  .progress-bar {
-    @apply w-full bg-neutral-200 rounded-full h-2;
-  }
-  
-  .progress-value {
-    @apply h-full rounded-full;
-  }
-}
-
-@media (max-width: 768px) {
-  .sidebar {
-    transform: translateX(-100%);
-    transition: transform 0.3s ease-in-out;
-  }
-  .sidebar.open {
-    transform: translateX(0);
-  }
 }

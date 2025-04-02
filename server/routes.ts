@@ -1,344 +1,547 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { 
-  insertWeightLogSchema, 
-  insertWorkoutLogSchema, 
-  insertExerciseLogSchema, 
-  insertNutritionLogSchema,
-  ActivityType
+import { format, subDays } from "date-fns";
+import {
+  insertWeightEntrySchema,
+  insertNutritionEntrySchema,
+  insertWorkoutEntrySchema,
+  insertExerciseEntrySchema
 } from "@shared/schema";
+import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Create HTTP server
+  // Default user ID (Luke)
+  const DEFAULT_USER_ID = 1;
+
+  // ===== Dashboard Routes =====
+  app.get("/api/dashboard/metrics", async (req: Request, res: Response) => {
+    try {
+      const metrics = await storage.getDashboardMetrics(DEFAULT_USER_ID);
+      res.json(metrics);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/dashboard/weekly-progress", async (req: Request, res: Response) => {
+    try {
+      const progress = await storage.getWeeklyProgress(DEFAULT_USER_ID);
+      res.json(progress);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  // ===== Weight Routes =====
+  app.get("/api/weight", async (req: Request, res: Response) => {
+    try {
+      const filter = req.query.filter as string || 'all';
+      const entries = await storage.getWeightEntries(DEFAULT_USER_ID, filter);
+      res.json(entries);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/weight/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const entry = await storage.getWeightEntry(id);
+      
+      if (!entry) {
+        return res.status(404).json({ message: "Weight entry not found" });
+      }
+      
+      res.json(entry);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.post("/api/weight", async (req: Request, res: Response) => {
+    try {
+      const validatedData = insertWeightEntrySchema.parse({
+        ...req.body,
+        userId: DEFAULT_USER_ID
+      });
+      
+      const entry = await storage.createWeightEntry(validatedData);
+      res.status(201).json(entry);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.patch("/api/weight/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const validatedData = insertWeightEntrySchema.partial().parse({
+        ...req.body,
+        userId: DEFAULT_USER_ID
+      });
+      
+      const updatedEntry = await storage.updateWeightEntry(id, validatedData);
+      
+      if (!updatedEntry) {
+        return res.status(404).json({ message: "Weight entry not found" });
+      }
+      
+      res.json(updatedEntry);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.delete("/api/weight/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deleteWeightEntry(id);
+      
+      if (!deleted) {
+        return res.status(404).json({ message: "Weight entry not found" });
+      }
+      
+      res.status(200).json({ success: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/weight/summary", async (req: Request, res: Response) => {
+    try {
+      const summary = await storage.getWeightSummary(DEFAULT_USER_ID);
+      res.json(summary);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  // ===== Nutrition Routes =====
+  app.get("/api/nutrition", async (req: Request, res: Response) => {
+    try {
+      const dateFilter = req.query.dateFilter as string || 'today';
+      const entries = await storage.getNutritionEntries(DEFAULT_USER_ID, dateFilter);
+      res.json(entries);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/nutrition/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const entry = await storage.getNutritionEntry(id);
+      
+      if (!entry) {
+        return res.status(404).json({ message: "Nutrition entry not found" });
+      }
+      
+      res.json(entry);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.post("/api/nutrition", async (req: Request, res: Response) => {
+    try {
+      const validatedData = insertNutritionEntrySchema.parse({
+        ...req.body,
+        userId: DEFAULT_USER_ID
+      });
+      
+      const entry = await storage.createNutritionEntry(validatedData);
+      res.status(201).json(entry);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.patch("/api/nutrition/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const validatedData = insertNutritionEntrySchema.partial().parse({
+        ...req.body,
+        userId: DEFAULT_USER_ID
+      });
+      
+      const updatedEntry = await storage.updateNutritionEntry(id, validatedData);
+      
+      if (!updatedEntry) {
+        return res.status(404).json({ message: "Nutrition entry not found" });
+      }
+      
+      res.json(updatedEntry);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.delete("/api/nutrition/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deleteNutritionEntry(id);
+      
+      if (!deleted) {
+        return res.status(404).json({ message: "Nutrition entry not found" });
+      }
+      
+      res.status(200).json({ success: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/nutrition/summary", async (req: Request, res: Response) => {
+    try {
+      const summary = await storage.getNutritionSummary(DEFAULT_USER_ID);
+      res.json(summary);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/nutrition/weekly", async (req: Request, res: Response) => {
+    try {
+      const weeklyData = await storage.getWeeklyCalories(DEFAULT_USER_ID);
+      res.json(weeklyData);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/nutrition/macros", async (req: Request, res: Response) => {
+    try {
+      const macroData = await storage.getMacroDistribution(DEFAULT_USER_ID);
+      res.json(macroData);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  // ===== Workout Routes =====
+  app.get("/api/workouts", async (req: Request, res: Response) => {
+    try {
+      const typeFilter = req.query.typeFilter as string || 'all';
+      const entries = await storage.getWorkoutEntries(DEFAULT_USER_ID, typeFilter);
+      
+      // Get exercises for each workout
+      const workoutsWithExercises = await Promise.all(
+        entries.map(async (workout) => {
+          const exercises = await storage.getWorkoutExercises(workout.id);
+          return { ...workout, exercises };
+        })
+      );
+      
+      res.json(workoutsWithExercises);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/workouts/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const workout = await storage.getWorkoutEntry(id);
+      
+      if (!workout) {
+        return res.status(404).json({ message: "Workout not found" });
+      }
+      
+      const exercises = await storage.getWorkoutExercises(workout.id);
+      res.json({ ...workout, exercises });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.post("/api/workouts", async (req: Request, res: Response) => {
+    try {
+      const { exercises, ...workoutData } = req.body;
+      
+      // Validate workout data
+      const validatedWorkoutData = insertWorkoutEntrySchema.parse({
+        ...workoutData,
+        userId: DEFAULT_USER_ID
+      });
+      
+      // Validate exercises data
+      if (!Array.isArray(exercises) || exercises.length === 0) {
+        return res.status(400).json({ message: "At least one exercise is required" });
+      }
+      
+      const validatedExercises = exercises.map(exercise => 
+        insertExerciseEntrySchema.omit({ workoutId: true }).parse(exercise)
+      );
+      
+      // Create workout with exercises
+      const workout = await storage.createWorkoutEntry(validatedWorkoutData, validatedExercises);
+      
+      // Get exercises to return
+      const workoutExercises = await storage.getWorkoutExercises(workout.id);
+      
+      res.status(201).json({ ...workout, exercises: workoutExercises });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.patch("/api/workouts/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { exercises, ...workoutData } = req.body;
+      
+      // Validate workout data
+      const validatedWorkoutData = insertWorkoutEntrySchema.partial().parse({
+        ...workoutData,
+        userId: DEFAULT_USER_ID
+      });
+      
+      // Validate exercises data if provided
+      let validatedExercises = undefined;
+      if (exercises) {
+        if (!Array.isArray(exercises) || exercises.length === 0) {
+          return res.status(400).json({ message: "At least one exercise is required" });
+        }
+        
+        validatedExercises = exercises.map(exercise => 
+          insertExerciseEntrySchema.omit({ workoutId: true }).parse(exercise)
+        );
+      }
+      
+      // Update workout
+      const updatedWorkout = await storage.updateWorkoutEntry(id, validatedWorkoutData, validatedExercises);
+      
+      if (!updatedWorkout) {
+        return res.status(404).json({ message: "Workout not found" });
+      }
+      
+      // Get exercises to return
+      const workoutExercises = await storage.getWorkoutExercises(id);
+      
+      res.json({ ...updatedWorkout, exercises: workoutExercises });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.delete("/api/workouts/:id", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const deleted = await storage.deleteWorkoutEntry(id);
+      
+      if (!deleted) {
+        return res.status(404).json({ message: "Workout not found" });
+      }
+      
+      res.status(200).json({ success: true });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/workouts/summary", async (req: Request, res: Response) => {
+    try {
+      const summary = await storage.getWorkoutSummary(DEFAULT_USER_ID);
+      res.json(summary);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/workouts/types", async (req: Request, res: Response) => {
+    try {
+      const typeData = await storage.getWorkoutTypeDistribution(DEFAULT_USER_ID);
+      res.json(typeData);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/workouts/duration", async (req: Request, res: Response) => {
+    try {
+      const durationData = await storage.getWeeklyWorkoutDuration(DEFAULT_USER_ID);
+      res.json(durationData);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  // ===== Activity and History Routes =====
+  app.get("/api/activities/recent", async (req: Request, res: Response) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
+      const activities = await storage.getRecentActivities(DEFAULT_USER_ID, limit);
+      res.json(activities);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/history", async (req: Request, res: Response) => {
+    try {
+      const options = {
+        activityType: req.query.activityType as string,
+        dateFrom: req.query.dateFrom as string,
+        dateTo: req.query.dateTo as string,
+        page: req.query.page ? parseInt(req.query.page as string) : 1,
+        limit: req.query.limit ? parseInt(req.query.limit as string) : 10
+      };
+      
+      const historyData = await storage.getActivityHistory(DEFAULT_USER_ID, options);
+      res.json(historyData);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/history/export", async (req: Request, res: Response) => {
+    try {
+      const options = {
+        activityType: req.query.activityType as string,
+        dateFrom: req.query.dateFrom as string,
+        dateTo: req.query.dateTo as string,
+        limit: 1000 // Get a large number of entries for export
+      };
+      
+      const historyData = await storage.getActivityHistory(DEFAULT_USER_ID, options);
+      
+      // Convert to CSV
+      let csv = "Date,Time,ActivityType,Description,Values\n";
+      
+      historyData.entries.forEach(entry => {
+        const date = entry.date;
+        const time = entry.time;
+        const activityType = entry.activityType;
+        const description = entry.description.replace(/,/g, ' '); // Remove commas to prevent CSV issues
+        const values = entry.values.replace(/,/g, ' ');
+        
+        csv += `${date},${time},${activityType},${description},${values}\n`;
+      });
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=fitness-history-${format(new Date(), 'yyyy-MM-dd')}.csv`);
+      res.send(csv);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  // ===== Statistics Routes =====
+  app.get("/api/statistics/summary", async (req: Request, res: Response) => {
+    try {
+      const summary = await storage.getStatisticsSummary(DEFAULT_USER_ID);
+      res.json(summary);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/statistics/weight-trend", async (req: Request, res: Response) => {
+    try {
+      const period = req.query.period as string || '3m';
+      const trendData = await storage.getWeightTrend(DEFAULT_USER_ID, period);
+      res.json(trendData);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/statistics/workout-consistency", async (req: Request, res: Response) => {
+    try {
+      const period = req.query.period as string || '3m';
+      const consistencyData = await storage.getWorkoutConsistency(DEFAULT_USER_ID, period);
+      res.json(consistencyData);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/statistics/nutrition-weight-correlation", async (req: Request, res: Response) => {
+    try {
+      const correlationData = await storage.getNutritionWeightCorrelation(DEFAULT_USER_ID);
+      res.json(correlationData);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/statistics/workout-performance", async (req: Request, res: Response) => {
+    try {
+      const performanceData = await storage.getWorkoutPerformance(DEFAULT_USER_ID);
+      res.json(performanceData);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/statistics/goal-progress", async (req: Request, res: Response) => {
+    try {
+      const progressData = await storage.getGoalProgress(DEFAULT_USER_ID);
+      res.json(progressData);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  // Create and return the HTTP server
   const httpServer = createServer(app);
-  
-  // Get current user (temporary - using the default user)
-  app.get("/api/user", async (req: Request, res: Response) => {
-    try {
-      const user = await storage.getUserByUsername("luke");
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-      return res.json(user);
-    } catch (error) {
-      return res.status(500).json({ message: "Error fetching user" });
-    }
-  });
-  
-  // Update user goals
-  app.put("/api/user/:id", async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      const userId = parseInt(id);
-      const user = await storage.getUser(userId);
-      
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
-      }
-      
-      const updatedUser = await storage.updateUser(userId, req.body);
-      return res.json(updatedUser);
-    } catch (error) {
-      return res.status(500).json({ message: "Error updating user" });
-    }
-  });
-
-  // Weight Logs Routes
-  app.post("/api/weight-logs", async (req: Request, res: Response) => {
-    try {
-      const validatedData = insertWeightLogSchema.parse(req.body);
-      const weightLog = await storage.createWeightLog(validatedData);
-      return res.status(201).json(weightLog);
-    } catch (error) {
-      return res.status(400).json({ message: "Invalid weight log data" });
-    }
-  });
-
-  app.get("/api/weight-logs/user/:userId", async (req: Request, res: Response) => {
-    try {
-      const { userId } = req.params;
-      const logs = await storage.getWeightLogs(parseInt(userId));
-      return res.json(logs);
-    } catch (error) {
-      return res.status(500).json({ message: "Error fetching weight logs" });
-    }
-  });
-
-  app.get("/api/weight-logs/:id", async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      const log = await storage.getWeightLogById(parseInt(id));
-      
-      if (!log) {
-        return res.status(404).json({ message: "Weight log not found" });
-      }
-      
-      return res.json(log);
-    } catch (error) {
-      return res.status(500).json({ message: "Error fetching weight log" });
-    }
-  });
-  
-  app.get("/api/weight-logs/latest/user/:userId", async (req: Request, res: Response) => {
-    try {
-      const { userId } = req.params;
-      const log = await storage.getLatestWeightLog(parseInt(userId));
-      
-      if (!log) {
-        return res.status(404).json({ message: "No weight logs found" });
-      }
-      
-      return res.json(log);
-    } catch (error) {
-      return res.status(500).json({ message: "Error fetching latest weight log" });
-    }
-  });
-
-  app.put("/api/weight-logs/:id", async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      const updatedLog = await storage.updateWeightLog(parseInt(id), req.body);
-      
-      if (!updatedLog) {
-        return res.status(404).json({ message: "Weight log not found" });
-      }
-      
-      return res.json(updatedLog);
-    } catch (error) {
-      return res.status(500).json({ message: "Error updating weight log" });
-    }
-  });
-
-  app.delete("/api/weight-logs/:id", async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      const success = await storage.deleteWeightLog(parseInt(id));
-      
-      if (!success) {
-        return res.status(404).json({ message: "Weight log not found" });
-      }
-      
-      return res.json({ success: true });
-    } catch (error) {
-      return res.status(500).json({ message: "Error deleting weight log" });
-    }
-  });
-
-  // Workout Logs Routes
-  app.post("/api/workout-logs", async (req: Request, res: Response) => {
-    try {
-      const validatedData = insertWorkoutLogSchema.parse(req.body);
-      const workoutLog = await storage.createWorkoutLog(validatedData);
-      return res.status(201).json(workoutLog);
-    } catch (error) {
-      return res.status(400).json({ message: "Invalid workout log data" });
-    }
-  });
-
-  app.get("/api/workout-logs/user/:userId", async (req: Request, res: Response) => {
-    try {
-      const { userId } = req.params;
-      const logs = await storage.getWorkoutLogs(parseInt(userId));
-      return res.json(logs);
-    } catch (error) {
-      return res.status(500).json({ message: "Error fetching workout logs" });
-    }
-  });
-
-  app.get("/api/workout-logs/:id", async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      const log = await storage.getWorkoutLogById(parseInt(id));
-      
-      if (!log) {
-        return res.status(404).json({ message: "Workout log not found" });
-      }
-      
-      return res.json(log);
-    } catch (error) {
-      return res.status(500).json({ message: "Error fetching workout log" });
-    }
-  });
-
-  app.put("/api/workout-logs/:id", async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      const updatedLog = await storage.updateWorkoutLog(parseInt(id), req.body);
-      
-      if (!updatedLog) {
-        return res.status(404).json({ message: "Workout log not found" });
-      }
-      
-      return res.json(updatedLog);
-    } catch (error) {
-      return res.status(500).json({ message: "Error updating workout log" });
-    }
-  });
-
-  app.delete("/api/workout-logs/:id", async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      const success = await storage.deleteWorkoutLog(parseInt(id));
-      
-      if (!success) {
-        return res.status(404).json({ message: "Workout log not found" });
-      }
-      
-      return res.json({ success: true });
-    } catch (error) {
-      return res.status(500).json({ message: "Error deleting workout log" });
-    }
-  });
-  
-  // Exercise Logs Routes
-  app.post("/api/exercise-logs", async (req: Request, res: Response) => {
-    try {
-      const validatedData = insertExerciseLogSchema.parse(req.body);
-      const exerciseLog = await storage.createExerciseLog(validatedData);
-      return res.status(201).json(exerciseLog);
-    } catch (error) {
-      return res.status(400).json({ message: "Invalid exercise log data" });
-    }
-  });
-
-  app.get("/api/exercise-logs/workout/:workoutId", async (req: Request, res: Response) => {
-    try {
-      const { workoutId } = req.params;
-      const logs = await storage.getExerciseLogs(parseInt(workoutId));
-      return res.json(logs);
-    } catch (error) {
-      return res.status(500).json({ message: "Error fetching exercise logs" });
-    }
-  });
-
-  app.delete("/api/exercise-logs/:id", async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      const success = await storage.deleteExerciseLog(parseInt(id));
-      
-      if (!success) {
-        return res.status(404).json({ message: "Exercise log not found" });
-      }
-      
-      return res.json({ success: true });
-    } catch (error) {
-      return res.status(500).json({ message: "Error deleting exercise log" });
-    }
-  });
-
-  // Nutrition Logs Routes
-  app.post("/api/nutrition-logs", async (req: Request, res: Response) => {
-    try {
-      const validatedData = insertNutritionLogSchema.parse(req.body);
-      const nutritionLog = await storage.createNutritionLog(validatedData);
-      return res.status(201).json(nutritionLog);
-    } catch (error) {
-      return res.status(400).json({ message: "Invalid nutrition log data" });
-    }
-  });
-
-  app.get("/api/nutrition-logs/user/:userId", async (req: Request, res: Response) => {
-    try {
-      const { userId } = req.params;
-      const logs = await storage.getNutritionLogs(parseInt(userId));
-      return res.json(logs);
-    } catch (error) {
-      return res.status(500).json({ message: "Error fetching nutrition logs" });
-    }
-  });
-
-  app.get("/api/nutrition-logs/user/:userId/date/:date", async (req: Request, res: Response) => {
-    try {
-      const { userId, date } = req.params;
-      const logs = await storage.getNutritionLogsByDate(parseInt(userId), new Date(date));
-      return res.json(logs);
-    } catch (error) {
-      return res.status(500).json({ message: "Error fetching nutrition logs" });
-    }
-  });
-
-  app.get("/api/nutrition-logs/:id", async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      const log = await storage.getNutritionLogById(parseInt(id));
-      
-      if (!log) {
-        return res.status(404).json({ message: "Nutrition log not found" });
-      }
-      
-      return res.json(log);
-    } catch (error) {
-      return res.status(500).json({ message: "Error fetching nutrition log" });
-    }
-  });
-
-  app.put("/api/nutrition-logs/:id", async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      const updatedLog = await storage.updateNutritionLog(parseInt(id), req.body);
-      
-      if (!updatedLog) {
-        return res.status(404).json({ message: "Nutrition log not found" });
-      }
-      
-      return res.json(updatedLog);
-    } catch (error) {
-      return res.status(500).json({ message: "Error updating nutrition log" });
-    }
-  });
-
-  app.delete("/api/nutrition-logs/:id", async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      const success = await storage.deleteNutritionLog(parseInt(id));
-      
-      if (!success) {
-        return res.status(404).json({ message: "Nutrition log not found" });
-      }
-      
-      return res.json({ success: true });
-    } catch (error) {
-      return res.status(500).json({ message: "Error deleting nutrition log" });
-    }
-  });
-
-  // Activity History Routes
-  app.get("/api/activities/recent/user/:userId", async (req: Request, res: Response) => {
-    try {
-      const { userId } = req.params;
-      const { limit } = req.query;
-      const activities = await storage.getRecentActivities(
-        parseInt(userId), 
-        limit ? parseInt(limit as string) : 10
-      );
-      return res.json(activities);
-    } catch (error) {
-      return res.status(500).json({ message: "Error fetching recent activities" });
-    }
-  });
-
-  app.get("/api/activities/user/:userId/daterange", async (req: Request, res: Response) => {
-    try {
-      const { userId } = req.params;
-      const { startDate, endDate, type } = req.query;
-      
-      if (!startDate || !endDate) {
-        return res.status(400).json({ message: "Start date and end date are required" });
-      }
-      
-      const activities = await storage.getActivitiesByDateRange(
-        parseInt(userId),
-        new Date(startDate as string),
-        new Date(endDate as string),
-        type as ActivityType | undefined
-      );
-      
-      return res.json(activities);
-    } catch (error) {
-      return res.status(500).json({ message: "Error fetching activities by date range" });
-    }
-  });
-
   return httpServer;
 }

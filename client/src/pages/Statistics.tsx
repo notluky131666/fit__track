@@ -1,329 +1,228 @@
 import { useQuery } from "@tanstack/react-query";
 import { 
-  User, 
-  WeightLog, 
-  WorkoutLog, 
-  NutritionLog 
-} from "@shared/schema";
-import { 
   Card, 
-  CardContent 
+  CardContent, 
+  CardHeader, 
+  CardTitle 
 } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
 import { useState } from "react";
-import { 
-  ChartLine, 
-  ChartPie, 
-  ArrowUp, 
-  ArrowDown, 
-  Minus, 
-  Flame, 
-  Dumbbell 
-} from "lucide-react";
-import ProgressChart, { ChartDataPoint } from "@/components/ProgressChart";
-import { 
-  BarChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer, 
-  PieChart, 
-  Pie, 
-  Cell
-} from "recharts";
+import StatisticsCharts from "@/components/charts/StatisticsCharts";
 
 export default function Statistics() {
-  const [timeRange, setTimeRange] = useState<string>("30days");
-  
-  // Fetch user data
-  const { data: user } = useQuery<User>({
-    queryKey: ['/api/user'],
+  const [weightTrendPeriod, setWeightTrendPeriod] = useState("3m");
+  const [workoutConsistencyPeriod, setWorkoutConsistencyPeriod] = useState("3m");
+
+  // Fetch statistics summary
+  const { data: statsSummary } = useQuery({
+    queryKey: ['/api/statistics/summary'],
   });
 
-  // Fetch weight logs
-  const { data: weightLogs = [], isLoading: isWeightLogsLoading } = useQuery<WeightLog[]>({
-    queryKey: ['/api/weight-logs/user', user?.id],
-    enabled: !!user?.id,
+  // Fetch weight trend data
+  const { data: weightTrendData } = useQuery({
+    queryKey: ['/api/statistics/weight-trend', weightTrendPeriod],
   });
 
-  // Fetch workout logs
-  const { data: workoutLogs = [], isLoading: isWorkoutLogsLoading } = useQuery<WorkoutLog[]>({
-    queryKey: ['/api/workout-logs/user', user?.id],
-    enabled: !!user?.id,
+  // Fetch workout consistency data
+  const { data: workoutConsistencyData } = useQuery({
+    queryKey: ['/api/statistics/workout-consistency', workoutConsistencyPeriod],
   });
 
-  // Fetch nutrition logs
-  const { data: nutritionLogs = [], isLoading: isNutritionLogsLoading } = useQuery<NutritionLog[]>({
-    queryKey: ['/api/nutrition-logs/user', user?.id],
-    enabled: !!user?.id,
+  // Fetch nutrition vs weight correlation data
+  const { data: nutritionWeightData } = useQuery({
+    queryKey: ['/api/statistics/nutrition-weight-correlation'],
   });
 
-  // Filter data based on time range
-  const getFilteredData = (data: any[]) => {
-    if (!data.length) return [];
-    
-    const now = new Date();
-    let startDate: Date;
-    
-    switch (timeRange) {
-      case "30days":
-        startDate = new Date();
-        startDate.setDate(now.getDate() - 30);
-        break;
-      case "90days":
-        startDate = new Date();
-        startDate.setDate(now.getDate() - 90);
-        break;
-      case "6months":
-        startDate = new Date();
-        startDate.setMonth(now.getMonth() - 6);
-        break;
-      case "year":
-        startDate = new Date();
-        startDate.setFullYear(now.getFullYear() - 1);
-        break;
-      default:
-        startDate = new Date();
-        startDate.setDate(now.getDate() - 30);
-    }
+  // Fetch workout performance data
+  const { data: workoutPerformanceData } = useQuery({
+    queryKey: ['/api/statistics/workout-performance'],
+  });
 
-    return data.filter(item => new Date(item.date) >= startDate);
+  // Fetch goal progress
+  const { data: goalProgress } = useQuery({
+    queryKey: ['/api/statistics/goal-progress'],
+  });
+
+  // Default progress data
+  const defaultGoalProgress = {
+    weight: { current: 0, goal: 175, progress: 0 },
+    workouts: { current: 0, goal: 5, progress: 0 },
+    calories: { current: 0, goal: 2500, progress: 0 },
+    protein: { current: 0, goal: 150, progress: 0 },
   };
 
-  // Calculate statistics
-  const filteredWeightLogs = getFilteredData(weightLogs)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  
-  const filteredWorkoutLogs = getFilteredData(workoutLogs);
-  const filteredNutritionLogs = getFilteredData(nutritionLogs);
-
-  // Weight trends
-  const startingWeight = filteredWeightLogs.length > 0 ? filteredWeightLogs[0].weight : 0;
-  const currentWeight = filteredWeightLogs.length > 0 ? filteredWeightLogs[filteredWeightLogs.length - 1].weight : 0;
-  const weightChange = currentWeight - startingWeight;
-  
-  // Prepare data for weight chart
-  const weightChartData: ChartDataPoint[] = filteredWeightLogs.map(log => ({
-    date: new Date(log.date),
-    weight: log.weight
-  }));
-
-  // Workout distribution
-  const workoutTypeMap: Record<string, number> = {};
-  filteredWorkoutLogs.forEach(workout => {
-    workoutTypeMap[workout.type] = (workoutTypeMap[workout.type] || 0) + 1;
-  });
-
-  const workoutDistributionData = Object.entries(workoutTypeMap).map(([type, count]) => ({
-    name: type,
-    value: count
-  }));
-
-  // Calculate workout frequency (average per week)
-  const totalWorkouts = filteredWorkoutLogs.length;
-  const daysDiff = timeRange === "30days" ? 30 : 
-                  timeRange === "90days" ? 90 : 
-                  timeRange === "6months" ? 180 : 365;
-  
-  const weeklyWorkoutFrequency = totalWorkouts / (daysDiff / 7);
-
-  // Calculate average calories
-  const dailyCaloriesMap: Record<string, number> = {};
-  
-  filteredNutritionLogs.forEach(log => {
-    const dateStr = new Date(log.date).toISOString().split('T')[0];
-    dailyCaloriesMap[dateStr] = (dailyCaloriesMap[dateStr] || 0) + log.calories;
-  });
-  
-  const totalDaysWithCalories = Object.keys(dailyCaloriesMap).length;
-  const averageDailyCalories = totalDaysWithCalories > 0 
-    ? Object.values(dailyCaloriesMap).reduce((sum, cal) => sum + cal, 0) / totalDaysWithCalories 
-    : 0;
-
-  // Define COLORS for pie chart
-  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
+  const goals = goalProgress || defaultGoalProgress;
 
   return (
-    <section className="mb-10">
-      <h2 className="text-2xl font-bold mb-6">Statistics & Insights</h2>
+    <div className="p-6">
+      <h2 className="text-2xl font-bold mb-6">Statistics & Analytics</h2>
       
-      {/* Statistics Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        {/* Weight Trends Chart */}
-        <ProgressChart
-          title="Weight Trends"
-          data={weightChartData}
-          dataKeys={[{ key: "weight", color: "#0033cc", name: "Weight (kg)" }]}
-          loading={isWeightLogsLoading}
-          height={300}
-          emptyMessage="Track your weight to see trends over time."
-          yAxisLabel="Weight (kg)"
-        />
-        
-        {/* Workout Distribution */}
+      {/* Statistics Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <Card>
-          <div className="border-b px-5 py-4">
-            <h3 className="text-lg font-medium">Workout Distribution</h3>
-          </div>
-          <CardContent className="p-5">
-            {workoutDistributionData.length > 0 ? (
-              <div className="h-[300px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={workoutDistributionData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={true}
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {workoutDistributionData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => [`${value} workouts`, 'Count']} />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="h-64 flex items-center justify-center">
-                <div className="text-center text-gray-500">
-                  <ChartPie className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                  <p>Log workouts to see your activity distribution.</p>
-                </div>
-              </div>
-            )}
+          <CardContent className="pt-6">
+            <h3 className="text-lg font-medium mb-2">Total Workouts</h3>
+            <p className="text-3xl font-semibold">{statsSummary?.totalWorkouts || 0}</p>
+            <p className="text-sm text-gray-500 mt-1">All time</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="pt-6">
+            <h3 className="text-lg font-medium mb-2">Weight Change</h3>
+            <p className="text-3xl font-semibold">
+              {statsSummary?.weightChange || 0} <span className="text-lg font-medium">kg</span>
+            </p>
+            <p className="text-sm text-gray-500 mt-1">Since tracking began</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="pt-6">
+            <h3 className="text-lg font-medium mb-2">Avg. Calories/Day</h3>
+            <p className="text-3xl font-semibold">{statsSummary?.avgCalories || 0}</p>
+            <p className="text-sm text-gray-500 mt-1">Last 7 days</p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardContent className="pt-6">
+            <h3 className="text-lg font-medium mb-2">Avg. Protein/Day</h3>
+            <p className="text-3xl font-semibold">
+              {statsSummary?.avgProtein || 0} <span className="text-lg font-medium">g</span>
+            </p>
+            <p className="text-sm text-gray-500 mt-1">Last 7 days</p>
           </CardContent>
         </Card>
       </div>
       
-      {/* Progress Metrics */}
-      <Card className="mb-8">
-        <div className="border-b px-5 py-4">
-          <h3 className="text-lg font-medium">Progress Metrics</h3>
-        </div>
-        <CardContent className="p-5">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Weight Progress */}
-            <div className="border rounded-lg p-4">
-              <h4 className="text-sm font-medium text-gray-500 mb-2">WEIGHT PROGRESS</h4>
-              <div className="flex items-baseline">
-                <span className="text-2xl font-bold">
-                  {weightChange !== 0 ? (
-                    <span className={weightChange > 0 ? 'text-red-500' : 'text-green-500'}>
-                      {weightChange > 0 ? '+' : ''}{weightChange.toFixed(1)}
-                    </span>
-                  ) : (
-                    0
-                  )}
-                </span>
-                <span className="ml-1 text-gray-500">kg</span>
-                {weightChange !== 0 && (
-                  <span className="ml-2">
-                    {weightChange > 0 ? (
-                      <ArrowUp className="h-4 w-4 text-red-500" />
-                    ) : weightChange < 0 ? (
-                      <ArrowDown className="h-4 w-4 text-green-500" />
-                    ) : (
-                      <Minus className="h-4 w-4 text-gray-500" />
-                    )}
-                  </span>
-                )}
+      {/* Long Term Trends */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Weight Trend</CardTitle>
+            <Select value={weightTrendPeriod} onValueChange={setWeightTrendPeriod}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="Period" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1m">1 Month</SelectItem>
+                <SelectItem value="3m">3 Months</SelectItem>
+                <SelectItem value="6m">6 Months</SelectItem>
+                <SelectItem value="1y">1 Year</SelectItem>
+                <SelectItem value="all">All Time</SelectItem>
+              </SelectContent>
+            </Select>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <StatisticsCharts 
+                data={weightTrendData || []} 
+                type="weightTrend" 
+              />
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Workout Consistency</CardTitle>
+            <Select value={workoutConsistencyPeriod} onValueChange={setWorkoutConsistencyPeriod}>
+              <SelectTrigger className="w-32">
+                <SelectValue placeholder="Period" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1m">1 Month</SelectItem>
+                <SelectItem value="3m">3 Months</SelectItem>
+                <SelectItem value="6m">6 Months</SelectItem>
+                <SelectItem value="1y">1 Year</SelectItem>
+              </SelectContent>
+            </Select>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <StatisticsCharts 
+                data={workoutConsistencyData || []} 
+                type="workoutConsistency" 
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      
+      {/* Nutrition and Exercise Correlation */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <Card>
+          <CardHeader>
+            <CardTitle>Nutrition vs. Weight Change</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <StatisticsCharts 
+                data={nutritionWeightData || []} 
+                type="nutritionWeightCorrelation" 
+              />
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader>
+            <CardTitle>Workout Performance</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-64">
+              <StatisticsCharts 
+                data={workoutPerformanceData || []} 
+                type="workoutPerformance" 
+              />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      
+      {/* Goal Progress Tracking */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Goal Progress</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-6">
+            <div>
+              <div className="flex justify-between mb-1">
+                <span className="text-sm font-medium">Weight Goal ({goals.weight.goal} kg)</span>
+                <span className="text-sm font-medium">{goals.weight.progress}%</span>
               </div>
-              <p className="text-sm text-gray-500 mt-1">From starting weight</p>
+              <Progress value={goals.weight.progress} className="h-2.5" />
             </div>
             
-            {/* Calories Trend */}
-            <div className="border rounded-lg p-4">
-              <h4 className="text-sm font-medium text-gray-500 mb-2">CALORIE TREND</h4>
-              <div className="flex items-center">
-                <span className="text-2xl font-bold">
-                  {averageDailyCalories > 0 ? Math.round(averageDailyCalories) : '-'}
-                </span>
-                <span className="ml-2">
-                  <Flame className="h-5 w-5 text-orange-500" />
-                </span>
+            <div>
+              <div className="flex justify-between mb-1">
+                <span className="text-sm font-medium">Weekly Workout Goal ({goals.workouts.goal} sessions)</span>
+                <span className="text-sm font-medium">{goals.workouts.progress}%</span>
               </div>
-              <p className="text-sm text-gray-500 mt-1">Daily average</p>
+              <Progress value={goals.workouts.progress} className="h-2.5" indicatorColor="bg-green-500" />
             </div>
             
-            {/* Workout Frequency */}
-            <div className="border rounded-lg p-4">
-              <h4 className="text-sm font-medium text-gray-500 mb-2">WORKOUT FREQUENCY</h4>
-              <div className="flex items-center">
-                <span className="text-2xl font-bold">
-                  {weeklyWorkoutFrequency > 0 ? weeklyWorkoutFrequency.toFixed(1) : '0'}
-                </span>
-                <span className="ml-1 text-gray-500">/ week</span>
-                <span className="ml-2">
-                  <Dumbbell className="h-5 w-5 text-blue-500" />
-                </span>
+            <div>
+              <div className="flex justify-between mb-1">
+                <span className="text-sm font-medium">Daily Calorie Goal ({goals.calories.goal} kcal)</span>
+                <span className="text-sm font-medium">{goals.calories.progress}%</span>
               </div>
-              <p className="text-sm text-gray-500 mt-1">{timeRange === "30days" ? "30-day" : timeRange === "90days" ? "90-day" : timeRange === "6months" ? "6-month" : "12-month"} average</p>
+              <Progress value={goals.calories.progress} className="h-2.5" indicatorColor="bg-yellow-400" />
+            </div>
+            
+            <div>
+              <div className="flex justify-between mb-1">
+                <span className="text-sm font-medium">Daily Protein Goal ({goals.protein.goal}g)</span>
+                <span className="text-sm font-medium">{goals.protein.progress}%</span>
+              </div>
+              <Progress value={goals.protein.progress} className="h-2.5" indicatorColor="bg-purple-500" />
             </div>
           </div>
         </CardContent>
       </Card>
-      
-      {/* Time-Based Analysis */}
-      <Card>
-        <div className="border-b px-5 py-4 flex justify-between items-center">
-          <h3 className="text-lg font-medium">Time-Based Analysis</h3>
-          <Select value={timeRange} onValueChange={setTimeRange}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Select time range" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="30days">Last 30 days</SelectItem>
-              <SelectItem value="90days">Last 90 days</SelectItem>
-              <SelectItem value="6months">Last 6 months</SelectItem>
-              <SelectItem value="year">Last year</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <CardContent className="p-5">
-          {weightChartData.length > 0 || workoutDistributionData.length > 0 ? (
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={Object.entries(dailyCaloriesMap).map(([date, calories]) => ({
-                    date: date.slice(5), // Remove year part for display
-                    calories
-                  }))}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis label={{ value: 'Calories', angle: -90, position: 'insideLeft' }} />
-                  <Tooltip formatter={(value) => [`${value} calories`, 'Calories']} />
-                  <Legend />
-                  <Bar dataKey="calories" fill="#0033cc" name="Daily Calories" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          ) : (
-            <div className="h-64 flex items-center justify-center">
-              <div className="text-center text-gray-500">
-                <ChartLine className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                <p>Keep tracking your progress to see time-based analysis.</p>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </section>
+    </div>
   );
 }
