@@ -913,22 +913,28 @@ export class PostgresStorage implements IStorage {
       // Get workout metrics
       const workoutMetrics = await this.getWorkoutSummary(userId);
       
-      // Get latest activity
-      const recentActivities = await this.getRecentActivities(userId, 3);
-      
+      // Format metrics to match expected structure in app
       return {
-        weight: weightMetrics,
-        nutrition: nutritionMetrics,
-        workout: workoutMetrics,
-        recentActivities
+        metrics: {
+          calories: nutritionMetrics.calories,
+          weight: weightMetrics.current,
+          workouts: workoutMetrics.weekly
+        },
+        goals: {
+          calories: nutritionMetrics.calorieGoal,
+          weight: weightMetrics.goal,
+          workouts: workoutMetrics.goal
+        },
+        progress: {
+          weight: weightMetrics.progress
+        }
       };
     } catch (error) {
       console.error('Error in getDashboardMetrics:', error);
       return {
-        weight: { current: 0, goal: 0, progress: 0 },
-        nutrition: { calories: 0, protein: 0, calorieGoal: 2500, proteinGoal: 150 },
-        workout: { weekly: 0, goal: 3, mostFrequent: 'None', last: { name: 'None', date: 'Never' } },
-        recentActivities: []
+        metrics: { calories: 0, weight: 0, workouts: 0 },
+        goals: { calories: 2500, weight: 75, workouts: 3 },
+        progress: { weight: 0 }
       };
     }
   }
