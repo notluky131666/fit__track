@@ -2,6 +2,13 @@ import { pgTable, text, serial, integer, numeric, timestamp, boolean } from "dri
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Activity types for categorization
+export enum ActivityType {
+  Weight = 'weight',
+  Nutrition = 'nutrition',
+  Workout = 'workout'
+}
+
 // User model
 export const users = pgTable("users", {
   id: serial("id").primaryKey(),
