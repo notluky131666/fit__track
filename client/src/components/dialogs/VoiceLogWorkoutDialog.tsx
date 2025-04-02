@@ -14,10 +14,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { InsertWorkoutEntry } from "@shared/schema";
+import { InsertWorkoutEntry, InsertExerciseEntry } from "@shared/schema";
 
 interface VoiceLogWorkoutDialogProps {
   userId: number;
+}
+
+// Define a type for the workout data that includes exercises
+interface WorkoutWithExercises extends Partial<InsertWorkoutEntry> {
+  exercises: Partial<InsertExerciseEntry>[];
 }
 
 export default function VoiceLogWorkoutDialog({ userId }: VoiceLogWorkoutDialogProps) {
@@ -26,7 +31,7 @@ export default function VoiceLogWorkoutDialog({ userId }: VoiceLogWorkoutDialogP
   const [recordingTime, setRecordingTime] = useState(0);
   const [transcript, setTranscript] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [workoutData, setWorkoutData] = useState<Partial<InsertWorkoutEntry> | null>(null);
+  const [workoutData, setWorkoutData] = useState<WorkoutWithExercises | null>(null);
   
   const recognitionRef = useRef<any>(null);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -205,14 +210,80 @@ export default function VoiceLogWorkoutDialog({ userId }: VoiceLogWorkoutDialogP
       duration = parseInt(durationMatches[1], 10);
     }
     
+    // Generate default exercises based on workout type
+    let defaultExercises: Partial<InsertExerciseEntry>[] = [];
+    
+    if (workoutType === "strength") {
+      // Extract potential strength exercises
+      const hasBench = lowerTranscript.includes("bench") || lowerTranscript.includes("chest");
+      const hasSquat = lowerTranscript.includes("squat") || lowerTranscript.includes("leg");
+      const hasDeadlift = lowerTranscript.includes("deadlift") || lowerTranscript.includes("back");
+      
+      if (hasBench) {
+        defaultExercises.push({ name: "Bench Press", sets: 3, reps: 10, weight: 60 });
+      }
+      
+      if (hasSquat) {
+        defaultExercises.push({ name: "Squats", sets: 3, reps: 10, weight: 80 });
+      }
+      
+      if (hasDeadlift) {
+        defaultExercises.push({ name: "Deadlifts", sets: 3, reps: 8, weight: 100 });
+      }
+      
+      // If no specific exercises were detected, add default ones
+      if (defaultExercises.length === 0) {
+        defaultExercises = [
+          { name: "Bench Press", sets: 3, reps: 10, weight: 60 },
+          { name: "Squats", sets: 3, reps: 10, weight: 80 },
+          { name: "Deadlifts", sets: 3, reps: 8, weight: 100 }
+        ];
+      }
+    } else if (workoutType === "cardio") {
+      const hasRunning = lowerTranscript.includes("run") || lowerTranscript.includes("running");
+      const hasCycling = lowerTranscript.includes("cycl") || lowerTranscript.includes("bike");
+      
+      if (hasRunning) {
+        defaultExercises.push({ name: "Running", sets: 1, reps: 1, weight: 0 });
+      }
+      
+      if (hasCycling) {
+        defaultExercises.push({ name: "Cycling", sets: 1, reps: 1, weight: 0 });
+      }
+      
+      if (defaultExercises.length === 0) {
+        defaultExercises = [
+          { name: "Running", sets: 1, reps: 1, weight: 0 }
+        ];
+      }
+    } else if (workoutType === "flexibility") {
+      defaultExercises = [
+        { name: "Stretching", sets: 1, reps: 1, weight: 0 }
+      ];
+    } else if (workoutType === "sports") {
+      // Try to detect which sport
+      const hasSport = lowerTranscript.match(/(basketball|soccer|tennis|football|swimming)/);
+      let sportName = hasSport ? hasSport[1] : "Sports";
+      sportName = sportName.charAt(0).toUpperCase() + sportName.slice(1);
+      
+      defaultExercises = [
+        { name: sportName, sets: 1, reps: 1, weight: 0 }
+      ];
+    } else {
+      defaultExercises = [
+        { name: "Exercise", sets: 3, reps: 10, weight: 0 }
+      ];
+    }
+    
     // Create workout data
-    const workout: Partial<InsertWorkoutEntry> = {
+    const workout: WorkoutWithExercises = {
       userId,
       name: workoutName,
       type: workoutType,
       date: new Date(),
       duration,
       notes: `Voice logged: "${transcript}"`,
+      exercises: defaultExercises
     };
     
     setWorkoutData(workout);
@@ -221,7 +292,7 @@ export default function VoiceLogWorkoutDialog({ userId }: VoiceLogWorkoutDialogP
 
   // Save workout mutation
   const saveWorkoutMutation = useMutation({
-    mutationFn: async (workout: Partial<InsertWorkoutEntry>) => {
+    mutationFn: async (workout: WorkoutWithExercises) => {
       const response = await apiRequest("POST", "/api/workouts", workout);
       return response.json();
     },
@@ -237,7 +308,8 @@ export default function VoiceLogWorkoutDialog({ userId }: VoiceLogWorkoutDialogP
       
       setOpen(false);
     },
-    onError: () => {
+    onError: (error) => {
+      console.error("Error saving workout:", error);
       toast({
         title: "Failed to log workout",
         description: "Please try again.",
@@ -248,7 +320,7 @@ export default function VoiceLogWorkoutDialog({ userId }: VoiceLogWorkoutDialogP
 
   const saveWorkout = () => {
     if (workoutData) {
-      saveWorkoutMutation.mutate(workoutData as InsertWorkoutEntry);
+      saveWorkoutMutation.mutate(workoutData);
     }
   };
 
@@ -342,7 +414,7 @@ export default function VoiceLogWorkoutDialog({ userId }: VoiceLogWorkoutDialogP
             </>
           ) : (
             <>
-              <div className="space-y-2">
+              <div className="space-y-4">
                 <h3 className="text-lg font-medium">Detected Workout:</h3>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   <div className="font-medium">Name:</div>
@@ -356,9 +428,37 @@ export default function VoiceLogWorkoutDialog({ userId }: VoiceLogWorkoutDialogP
                   
                   <div className="font-medium">Date:</div>
                   <div>{workoutData.date?.toLocaleDateString()}</div>
-                  
-                  <div className="font-medium col-span-2">Notes:</div>
-                  <div className="col-span-2 whitespace-pre-wrap text-xs">
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm mb-2">Exercises:</h4>
+                  <div className="max-h-[120px] overflow-y-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-muted">
+                        <tr>
+                          <th className="p-2 text-left">Exercise</th>
+                          <th className="p-2 text-center">Sets</th>
+                          <th className="p-2 text-center">Reps</th>
+                          <th className="p-2 text-right">Weight (kg)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {workoutData.exercises?.map((exercise: Partial<InsertExerciseEntry>, index: number) => (
+                          <tr key={index} className="border-b border-muted">
+                            <td className="p-2">{exercise.name}</td>
+                            <td className="p-2 text-center">{exercise.sets}</td>
+                            <td className="p-2 text-center">{exercise.reps}</td>
+                            <td className="p-2 text-right">{exercise.weight}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-medium text-sm mb-1">Notes:</h4>
+                  <div className="whitespace-pre-wrap text-xs bg-muted p-2 rounded">
                     {workoutData.notes}
                   </div>
                 </div>
