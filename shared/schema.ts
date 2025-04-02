@@ -33,12 +33,17 @@ export const weightEntries = pgTable("weight_entries", {
   notes: text("notes"),
 });
 
-export const insertWeightEntrySchema = createInsertSchema(weightEntries).pick({
-  userId: true,
-  date: true,
-  weight: true,
-  notes: true,
-});
+export const insertWeightEntrySchema = createInsertSchema(weightEntries)
+  .pick({
+    userId: true,
+    date: true,
+    weight: true,
+    notes: true,
+  })
+  .extend({
+    date: z.coerce.date().optional(),
+    weight: z.coerce.string()
+  });
 
 export type InsertWeightEntry = z.infer<typeof insertWeightEntrySchema>;
 export type WeightEntry = typeof weightEntries.$inferSelect;

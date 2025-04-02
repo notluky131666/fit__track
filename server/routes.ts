@@ -50,6 +50,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/weight/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid ID format" });
+      }
+      
       const entry = await storage.getWeightEntry(id);
       
       if (!entry) {
@@ -85,6 +90,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/weight/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid ID format" });
+      }
+      
       const validatedData = insertWeightEntrySchema.partial().parse({
         ...req.body,
         userId: DEFAULT_USER_ID
@@ -110,6 +120,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/weight/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid ID format" });
+      }
+      
       const deleted = await storage.deleteWeightEntry(id);
       
       if (!deleted) {
@@ -148,6 +163,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/nutrition/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid ID format" });
+      }
+      
       const entry = await storage.getNutritionEntry(id);
       
       if (!entry) {
@@ -183,6 +203,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/nutrition/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid ID format" });
+      }
+      
       const validatedData = insertNutritionEntrySchema.partial().parse({
         ...req.body,
         userId: DEFAULT_USER_ID
@@ -208,6 +233,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/nutrition/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid ID format" });
+      }
+      
       const deleted = await storage.deleteNutritionEntry(id);
       
       if (!deleted) {
@@ -275,6 +305,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/workouts/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid ID format" });
+      }
+      
       const workout = await storage.getWorkoutEntry(id);
       
       if (!workout) {
@@ -304,12 +339,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "At least one exercise is required" });
       }
       
-      const validatedExercises = exercises.map(exercise => 
-        insertExerciseEntrySchema.omit({ workoutId: true }).parse(exercise)
-      );
+      // Note: We don't need to validate workoutId in exercises here
+      // as the storage implementation will handle assigning the correct workoutId
+      // to each exercise after the workout is created
+      const validatedExercises = exercises.map(exercise => {
+        const { name, sets, reps, weight } = insertExerciseEntrySchema
+          .omit({ workoutId: true })
+          .parse(exercise);
+        
+        return { name, sets, reps, weight };
+      });
       
       // Create workout with exercises
-      const workout = await storage.createWorkoutEntry(validatedWorkoutData, validatedExercises);
+      const workout = await storage.createWorkoutEntry(validatedWorkoutData, validatedExercises as any);
       
       // Get exercises to return
       const workoutExercises = await storage.getWorkoutExercises(workout.id);
@@ -328,6 +370,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch("/api/workouts/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid ID format" });
+      }
+      
       const { exercises, ...workoutData } = req.body;
       
       // Validate workout data
@@ -343,13 +390,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ message: "At least one exercise is required" });
         }
         
-        validatedExercises = exercises.map(exercise => 
-          insertExerciseEntrySchema.omit({ workoutId: true }).parse(exercise)
-        );
+        validatedExercises = exercises.map(exercise => {
+          const { name, sets, reps, weight } = insertExerciseEntrySchema
+            .omit({ workoutId: true })
+            .parse(exercise);
+          
+          return { name, sets, reps, weight };
+        });
       }
       
       // Update workout
-      const updatedWorkout = await storage.updateWorkoutEntry(id, validatedWorkoutData, validatedExercises);
+      const updatedWorkout = await storage.updateWorkoutEntry(id, validatedWorkoutData, validatedExercises as any);
       
       if (!updatedWorkout) {
         return res.status(404).json({ message: "Workout not found" });
@@ -372,6 +423,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/workouts/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ message: "Invalid ID format" });
+      }
+      
       const deleted = await storage.deleteWorkoutEntry(id);
       
       if (!deleted) {
@@ -457,16 +513,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const historyData = await storage.getActivityHistory(DEFAULT_USER_ID, options);
       
       // Convert to CSV
-      let csv = "Date,Time,ActivityType,Description,Values\n";
+      let csv = "Date,ActivityType,Description,Values\n";
       
       historyData.entries.forEach(entry => {
-        const date = entry.date;
-        const time = entry.time;
+        // Format date as string in a readable format
+        const dateStr = entry.date instanceof Date 
+          ? format(entry.date, 'yyyy-MM-dd HH:mm:ss')
+          : String(entry.date);
+        
         const activityType = entry.activityType;
         const description = entry.description.replace(/,/g, ' '); // Remove commas to prevent CSV issues
         const values = entry.values.replace(/,/g, ' ');
         
-        csv += `${date},${time},${activityType},${description},${values}\n`;
+        csv += `${dateStr},${activityType},${description},${values}\n`;
       });
       
       res.setHeader('Content-Type', 'text/csv');

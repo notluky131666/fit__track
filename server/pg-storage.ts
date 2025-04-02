@@ -1020,7 +1020,7 @@ export class PostgresStorage implements IStorage {
   async getRecentActivities(userId: number, limit: number = 10): Promise<ActivityLog[]> {
     try {
       const result = await pool.query(
-        `SELECT * FROM activity_logs 
+        `SELECT * FROM activity_log 
          WHERE user_id = $1 
          ORDER BY date DESC 
          LIMIT $2`,
@@ -1076,7 +1076,7 @@ export class PostgresStorage implements IStorage {
       }
       
       // Get total count for pagination
-      const countQuery = `SELECT COUNT(*) as total FROM activity_logs ${whereClause}`;
+      const countQuery = `SELECT COUNT(*) as total FROM activity_log ${whereClause}`;
       const countResult = await pool.query(countQuery, queryParams);
       const total = parseInt(countResult.rows[0].total);
       
@@ -1088,7 +1088,7 @@ export class PostgresStorage implements IStorage {
         SELECT id, user_id, activity_type, description, values, 
                to_char(date, 'YYYY-MM-DD') as date,
                to_char(date, 'HH24:MI:SS') as time
-        FROM activity_logs 
+        FROM activity_log 
         ${whereClause}
         ORDER BY date DESC
         LIMIT $${paramIndex++} OFFSET $${paramIndex}
