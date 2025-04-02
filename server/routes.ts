@@ -214,10 +214,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/nutrition", async (req: Request, res: Response) => {
     try {
-      const validatedData = insertNutritionEntrySchema.parse({
+      // Convert date string to Date object if needed
+      const parsedData = {
         ...req.body,
-        userId: DEFAULT_USER_ID
-      });
+        userId: DEFAULT_USER_ID,
+        date: req.body.date instanceof Date ? req.body.date : new Date(req.body.date)
+      };
+      
+      const validatedData = insertNutritionEntrySchema.parse(parsedData);
       
       const entry = await storage.createNutritionEntry(validatedData);
       res.status(201).json(entry);
@@ -239,10 +243,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid ID format" });
       }
       
-      const validatedData = insertNutritionEntrySchema.partial().parse({
+      // Handle date conversion if needed
+      const parsedData = {
         ...req.body,
-        userId: DEFAULT_USER_ID
-      });
+        userId: DEFAULT_USER_ID,
+        date: req.body.date ? (req.body.date instanceof Date ? req.body.date : new Date(req.body.date)) : undefined
+      };
+      
+      const validatedData = insertNutritionEntrySchema.partial().parse(parsedData);
       
       const updatedEntry = await storage.updateNutritionEntry(id, validatedData);
       
@@ -331,11 +339,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { exercises, ...workoutData } = req.body;
       
-      // Validate workout data
-      const validatedWorkoutData = insertWorkoutEntrySchema.parse({
+      // Convert date string to Date object if needed
+      const parsedData = {
         ...workoutData,
-        userId: DEFAULT_USER_ID
-      });
+        userId: DEFAULT_USER_ID,
+        date: workoutData.date instanceof Date ? workoutData.date : new Date(workoutData.date)
+      };
+      
+      // Validate workout data
+      const validatedWorkoutData = insertWorkoutEntrySchema.parse(parsedData);
       
       // Validate exercises data
       if (!Array.isArray(exercises) || exercises.length === 0) {
@@ -380,11 +392,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const { exercises, ...workoutData } = req.body;
       
-      // Validate workout data
-      const validatedWorkoutData = insertWorkoutEntrySchema.partial().parse({
+      // Handle date conversion if needed
+      const parsedData = {
         ...workoutData,
-        userId: DEFAULT_USER_ID
-      });
+        userId: DEFAULT_USER_ID,
+        date: workoutData.date ? (workoutData.date instanceof Date ? workoutData.date : new Date(workoutData.date)) : undefined
+      };
+      
+      // Validate workout data
+      const validatedWorkoutData = insertWorkoutEntrySchema.partial().parse(parsedData);
       
       // Validate exercises data if provided
       let validatedExercises = undefined;
