@@ -2,7 +2,9 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { format, subDays } from "date-fns";
+import passport from "passport";
 import {
+  insertUserSchema,
   insertWeightEntrySchema,
   insertNutritionEntrySchema,
   insertWorkoutEntrySchema,
@@ -13,19 +15,84 @@ import { z } from "zod";
 export async function registerRoutes(app: Express): Promise<Server> {
   // Default user ID (Luke)
   const DEFAULT_USER_ID = 1;
+  
+  // Login endpoint with passport
+  app.post("/api/login", (req: Request, res: Response, next) => {
+    passport.authenticate("local", (err: Error | null, user: any, info: { message: string }) => {
+      if (err) {
+        return next(err);
+      }
+      
+      if (!user) {
+        return res.status(401).json({ message: info.message || "Invalid username or password" });
+      }
+      
+      // Log in the user using passport
+      req.login(user, (loginErr: Error | null) => {
+        if (loginErr) {
+          return next(loginErr);
+        }
+        
+        // Return user info
+        return res.status(200).json(user);
+      });
+    })(req, res, next);
+  });
 
   // ===== User Routes =====
-  app.get("/api/user", async (req: Request, res: Response) => {
+  // User registration
+  app.post("/api/register", async (req: Request, res: Response) => {
     try {
-      const user = await storage.getUser(DEFAULT_USER_ID);
-      if (!user) {
-        return res.status(404).json({ message: "User not found" });
+      // Validate user data
+      const validatedData = insertUserSchema.parse(req.body);
+      
+      // Check if username already exists
+      const existingUser = await storage.getUserByUsername(validatedData.username);
+      if (existingUser) {
+        return res.status(400).json({ message: "Username already exists" });
       }
-      res.json(user);
+      
+      // Create new user
+      const user = await storage.createUser(validatedData);
+      
+      // Remove password from response
+      const { password, ...userWithoutPassword } = user;
+      
+      res.status(201).json(userWithoutPassword);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors[0].message });
+      }
+      
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+  
+  // Get current user
+  app.get("/api/user", (req: Request, res: Response) => {
+    try {
+      // Check if user is authenticated
+      if (req.isAuthenticated() && req.user) {
+        return res.json(req.user);
+      }
+      
+      // For demo purposes, fallback to default user if no authenticated user
+      return res.status(401).json({ message: "Not authenticated" });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error";
       res.status(500).json({ message });
     }
+  });
+  
+  // Logout endpoint
+  app.post("/api/logout", (req: Request, res: Response) => {
+    req.logout((err: Error | null) => {
+      if (err) {
+        return res.status(500).json({ message: "Logout failed" });
+      }
+      res.status(200).json({ message: "Logged out successfully" });
+    });
   });
 
   // ===== Dashboard Routes =====
