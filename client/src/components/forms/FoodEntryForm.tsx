@@ -15,7 +15,7 @@ interface FoodEntry {
   protein: number;
   carbs: number;
   fat: number;
-  date: string;
+  date: string | Date;
 }
 
 interface FoodEntryFormProps {
@@ -50,12 +50,19 @@ export default function FoodEntryForm({
       protein: initialData?.protein || 0,
       carbs: initialData?.carbs || 0,
       fat: initialData?.fat || 0,
-      date: initialData?.date || format(new Date(), "yyyy-MM-dd"),
+      date: initialData?.date instanceof Date 
+        ? format(initialData.date, "yyyy-MM-dd") 
+        : initialData?.date || format(new Date(), "yyyy-MM-dd"),
     }
   });
 
   const handleSubmit = (values: z.infer<typeof formSchema>) => {
-    onSubmit(values);
+    // Convert string date to Date object for proper API submission
+    const formattedValues: Omit<FoodEntry, 'id'> = {
+      ...values,
+      date: new Date(values.date)
+    };
+    onSubmit(formattedValues);
   };
 
   return (

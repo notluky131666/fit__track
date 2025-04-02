@@ -149,6 +149,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ===== Nutrition Routes =====
+  // Define specific routes before parameter routes to avoid conflicts
+  app.get("/api/nutrition/summary", async (req: Request, res: Response) => {
+    try {
+      const summary = await storage.getNutritionSummary(DEFAULT_USER_ID);
+      res.json(summary);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/nutrition/weekly", async (req: Request, res: Response) => {
+    try {
+      const weeklyData = await storage.getWeeklyCalories(DEFAULT_USER_ID);
+      res.json(weeklyData);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
+  app.get("/api/nutrition/macros", async (req: Request, res: Response) => {
+    try {
+      const macroData = await storage.getMacroDistribution(DEFAULT_USER_ID);
+      res.json(macroData);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message });
+    }
+  });
+
   app.get("/api/nutrition", async (req: Request, res: Response) => {
     try {
       const dateFilter = req.query.dateFilter as string || 'today';
@@ -251,35 +282,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/nutrition/summary", async (req: Request, res: Response) => {
-    try {
-      const summary = await storage.getNutritionSummary(DEFAULT_USER_ID);
-      res.json(summary);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      res.status(500).json({ message });
-    }
-  });
-
-  app.get("/api/nutrition/weekly", async (req: Request, res: Response) => {
-    try {
-      const weeklyData = await storage.getWeeklyCalories(DEFAULT_USER_ID);
-      res.json(weeklyData);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      res.status(500).json({ message });
-    }
-  });
-
-  app.get("/api/nutrition/macros", async (req: Request, res: Response) => {
-    try {
-      const macroData = await storage.getMacroDistribution(DEFAULT_USER_ID);
-      res.json(macroData);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unknown error";
-      res.status(500).json({ message });
-    }
-  });
+  // The specific routes are already defined above, so we don't need these duplicates
 
   // ===== Workout Routes =====
   app.get("/api/workouts", async (req: Request, res: Response) => {
@@ -441,7 +444,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/workouts/summary", async (req: Request, res: Response) => {
+  // Move these routes before the /api/workouts/:id route to avoid conflicts
+  app.get("/api/workouts-summary", async (req: Request, res: Response) => {
     try {
       const summary = await storage.getWorkoutSummary(DEFAULT_USER_ID);
       res.json(summary);
@@ -451,7 +455,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/workouts/types", async (req: Request, res: Response) => {
+  app.get("/api/workouts-types", async (req: Request, res: Response) => {
     try {
       const typeData = await storage.getWorkoutTypeDistribution(DEFAULT_USER_ID);
       res.json(typeData);
@@ -461,7 +465,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/workouts/duration", async (req: Request, res: Response) => {
+  app.get("/api/workouts-duration", async (req: Request, res: Response) => {
     try {
       const durationData = await storage.getWeeklyWorkoutDuration(DEFAULT_USER_ID);
       res.json(durationData);

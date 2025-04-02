@@ -2,13 +2,12 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { 
   User, 
-  WorkoutLog, 
-  Activity,
+  WorkoutEntry, 
+  ActivityLog,
   ActivityType
 } from "@shared/schema";
 import {
   formatDate,
-  formatDuration,
   calculatePercentage
 } from "@/lib/utils";
 import {
@@ -46,8 +45,8 @@ import MetricCard from "@/components/MetricCard";
 
 export default function Workouts() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [workoutToDelete, setWorkoutToDelete] = useState<Activity | null>(null);
-  const [editingWorkout, setEditingWorkout] = useState<WorkoutLog | null>(null);
+  const [workoutToDelete, setWorkoutToDelete] = useState<ActivityLog | null>(null);
+  const [editingWorkout, setEditingWorkout] = useState<WorkoutEntry | null>(null);
   const [workoutTypeFilter, setWorkoutTypeFilter] = useState<string>("all");
 
   const { toast } = useToast();
@@ -59,20 +58,18 @@ export default function Workouts() {
   });
 
   // Fetch workout logs
-  const { data: workoutLogs = [], isLoading: isWorkoutLogsLoading } = useQuery<WorkoutLog[]>({
-    queryKey: ['/api/workout-logs/user', user?.id],
-    enabled: !!user?.id,
+  const { data: workoutLogs = [], isLoading: isWorkoutLogsLoading } = useQuery<WorkoutEntry[]>({
+    queryKey: ['/api/workouts'],
   });
 
   // Get workout activities for the table display
-  const { data: workoutActivities = [], isLoading: isActivitiesLoading } = useQuery<Activity[]>({
-    queryKey: ['/api/activities/recent/user', user?.id, 1000],
-    enabled: !!user?.id,
+  const { data: workoutActivities = [], isLoading: isActivitiesLoading } = useQuery<ActivityLog[]>({
+    queryKey: ['/api/activities/recent'],
   });
 
   // Filter activities to only show workout logs
   const filteredWorkoutActivities = workoutActivities
-    .filter(activity => activity.type === ActivityType.WORKOUT)
+    .filter(activity => activity.activityType === ActivityType.Workout)
     .filter(activity => {
       if (workoutTypeFilter === "all") return true;
       
@@ -125,12 +122,13 @@ export default function Workouts() {
   // Delete workout log
   const deleteWorkoutMutation = useMutation({
     mutationFn: async (id: number) => {
-      const response = await apiRequest("DELETE", `/api/workout-logs/${id}`, null);
+      const response = await apiRequest("DELETE", `/api/workouts/${id}`, null);
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/workout-logs/user', user?.id] });
-      queryClient.invalidateQueries({ queryKey: ['/api/activities/recent/user', user?.id] });
+      queryClient.invalidateQueries({ queryKey: ['/api/workouts'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/activities/recent'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/workouts-summary'] });
       
       toast({
         title: "Workout deleted",
@@ -146,14 +144,14 @@ export default function Workouts() {
     }
   });
 
-  const handleEditWorkout = (activity: Activity) => {
+  const handleEditWorkout = (activity: ActivityLog) => {
     const workout = workoutLogs.find(w => w.id === activity.id);
     if (workout) {
       setEditingWorkout(workout);
     }
   };
 
-  const handleDeleteWorkout = (activity: Activity) => {
+  const handleDeleteWorkout = (activity: ActivityLog) => {
     setWorkoutToDelete(activity);
     setDeleteDialogOpen(true);
   };
